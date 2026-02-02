@@ -61,7 +61,7 @@ Other columns are optional and will display automatically.
    ]
    ```
 
-3. Place your `index.html` template in a `templates` folder.
+3. Place your Excel data file(s) in the project directory.
 
 ## Run
 
@@ -75,11 +75,16 @@ Open http://localhost:8889
 
 ```
 project/
-├── main.py
+├── main.py              # FastAPI server with file watching
 ├── requirements.txt
-├── mockData.xlsx
-└── templates/
-    └── index.html
+├── mockData.xlsx        # Your Excel data (gitignored)
+├── templates/
+│   └── index.html       # HTML template with Jinja2
+└── static/
+    ├── css/
+    │   └── styles.css   # Custom animations and styles
+    └── js/
+        └── app.js       # Application logic
 ```
 
 ## API Endpoints
