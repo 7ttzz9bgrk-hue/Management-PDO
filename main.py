@@ -8,6 +8,8 @@ import pandas as pd
 import asyncio
 import os
 import re
+import shutil
+import tempfile
 from datetime import datetime
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -117,6 +119,48 @@ def reload_data():
     # Notify all connected SSE clients
     notify_clients()
 
+def safe_read_excel(file_path: str, **kwargs):
+    """
+    Safely read an Excel file that might be open in Excel.
+    Copies to a temp file first to avoid file lock issues.
+    """
+    # Create a temp file with the same extension
+    _, ext = os.path.splitext(file_path)
+    temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
+    os.close(temp_fd)
+
+    try:
+        # Copy the file to temp location (works even if Excel has it open)
+        shutil.copy2(file_path, temp_path)
+        # Read from the temp copy
+        return pd.read_excel(temp_path, **kwargs)
+    finally:
+        # Clean up temp file
+        try:
+            os.unlink(temp_path)
+        except Exception:
+            pass
+
+
+def safe_get_sheet_names(file_path: str) -> list:
+    """
+    Safely get sheet names from an Excel file that might be open in Excel.
+    """
+    _, ext = os.path.splitext(file_path)
+    temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
+    os.close(temp_fd)
+
+    try:
+        shutil.copy2(file_path, temp_path)
+        with pd.ExcelFile(temp_path) as excel_file:
+            return excel_file.sheet_names
+    finally:
+        try:
+            os.unlink(temp_path)
+        except Exception:
+            pass
+
+
 def load_all_sheets_data():
     all_data = {}
     valid_sheet_names = []
@@ -124,8 +168,7 @@ def load_all_sheets_data():
     for file_path in FILE_PATHS:
         abs_file_path = os.path.abspath(file_path)  # Store absolute path for metadata
         try:
-            with pd.ExcelFile(file_path) as excel_file:
-                sheet_names = excel_file.sheet_names
+            sheet_names = safe_get_sheet_names(file_path)
         except Exception as e:
             print(f"Error opening file '{file_path}': {e}")
             continue
@@ -137,7 +180,7 @@ def load_all_sheets_data():
                 continue
 
             try:
-                df = pd.read_excel(file_path, sheet_name=sheet_name)
+                df = safe_read_excel(file_path, sheet_name=sheet_name)
 
                 if df.empty or len(df.columns) < 2:
                     print(f"Warning: Skipping empty sheet '{sheet_name}' in '{file_path}'")
@@ -323,8 +366,8 @@ async def save_task(update: TaskUpdate):
             write_in_progress = True
 
         try:
-            # Read entire Excel file (all sheets)
-            excel_data = pd.read_excel(abs_path, sheet_name=None, engine='openpyxl')
+            # Read entire Excel file (all sheets) using safe read to handle open files
+            excel_data = safe_read_excel(abs_path, sheet_name=None, engine='openpyxl')
 
             if update.sheet_name not in excel_data:
                 raise HTTPException(status_code=404, detail="Sheet not found")
@@ -363,9 +406,15 @@ async def save_task(update: TaskUpdate):
             excel_data[update.sheet_name] = df
 
             # Write back to Excel file
-            with pd.ExcelWriter(abs_path, engine='openpyxl', mode='w') as writer:
-                for sname, sheet_df in excel_data.items():
-                    sheet_df.to_excel(writer, sheet_name=sname, index=False)
+            try:
+                with pd.ExcelWriter(abs_path, engine='openpyxl', mode='w') as writer:
+                    for sname, sheet_df in excel_data.items():
+                        sheet_df.to_excel(writer, sheet_name=sname, index=False)
+            except PermissionError:
+                raise HTTPException(
+                    status_code=423,
+                    detail="Cannot save: The Excel file is open in another program. Please close Excel and try again."
+                )
 
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Saved changes to {os.path.basename(abs_path)}, sheet '{update.sheet_name}', row {update.row_index}")
 
