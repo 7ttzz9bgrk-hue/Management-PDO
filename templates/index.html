@@ -360,7 +360,9 @@
           assignedTo = line.split('Assigned To:')[1].trim();
         }
         if (line.includes('Deadline:')) {
-          deadline = line.split('Deadline:')[1].trim();
+          const rawD = line.split('Deadline:')[1].trim();
+          const dd = new Date(rawD);
+          deadline = isNaN(dd) ? rawD : `${String(dd.getDate()).padStart(2,'0')}/${String(dd.getMonth()+1).padStart(2,'0')}/${String(dd.getFullYear()).slice(-2)}`;
         }
       });
       
@@ -536,7 +538,6 @@
       const instances = filteredTasks.filter(t => t.name === taskName);
       
       if (instances.length === 0) {
-        display.innerHTML = `<p class="text-red-400">No details available for ${taskName}</p>`;
         return;
       }
       
@@ -588,7 +589,7 @@
             <!-- Instance Details (Collapsible) -->
             <div id="details-${taskName}-${index}" class="task-details ${detailsClass} px-4 pb-4 pt-0">
               <div class="pl-8 border-l-2 border-gray-600 ml-2 space-y-2">
-                <div class="whitespace-pre-line text-gray-300 leading-relaxed">${task.details}</div>
+                <div class="whitespace-pre-line text-gray-300 leading-relaxed">${task.details.replace(/Deadline:\s*(\d{4}-\d{2}-\d{2})\s*\d{2}:\d{2}:\d{2}/g, (m, d) => { const p = d.split('-'); return 'Deadline: ' + p[2] + '/' + p[1] + '/' + p[0].slice(-2); })}</div>
               </div>
             </div>
           </div>
@@ -619,7 +620,7 @@
       document.getElementById('priorityFilter').value = 'All';
       document.getElementById('hideCompleted').checked = true;
       
-      createButtons(sheetName, false);
+      createButtons(sheetName, true);
       updateActiveFilterBadge();
       
       document.getElementById('textDisplay').innerHTML = '<p class="text-gray-500 italic">Click a task to view details</p>';
