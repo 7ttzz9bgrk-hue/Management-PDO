@@ -36,15 +36,16 @@ Click the **Edit** button on any task to modify its data:
 - **Add more rows** → Each row becomes a task
 - **Add/rename columns** → Columns are displayed automatically
 - **First column** → Always used as the task name
+- **Column names are flexible** → Use any column names you want. The app will display whatever columns you create, giving you full freedom to structure your data however you need.
 
-### Required Columns
+### Recommended Columns
 
-For full functionality, include these columns:
-- `Deadline`
-- `Priority`
-- `Status`
+For the best experience with filtering and status badges, consider including:
+- `Deadline` - Enables due date display
+- `Priority` - Enables priority indicators (High/Medium/Low)
+- `Status` - Enables status badges (Not Started/In Progress/Completed/Blocked)
 
-Other columns are optional and will display automatically.
+These are optional - the app works with any columns you define.
 
 ## Setup
 
