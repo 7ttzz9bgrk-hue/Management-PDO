@@ -4,6 +4,7 @@
  <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Management</title>
     <!-- Tailwind via CDN -->
     <script src="https://urldefense.com/v3/__https://cdn.tailwindcss.com__;!!O42koZAH9g!ZNT_3WdpX-x-xZdZCX6Hcze8UtiL0ppeyRyfMmQDqS5yJyfUgtZeRBoKxxtRYaDROwIMbRCkrcJ4g63w-MacEjXO9PdXLBIyMfe5wfkukg$ "></script>
     <style>
@@ -88,13 +89,14 @@
 <body class="bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 min-h-screen">
   <div class="flex">
     <!-- Side Panel -->
-    <div class="w-64 bg-gray-800 min-h-screen p-6 border-r border-gray-700">
+    <div class="w-64 bg-gray-800 h-screen sticky top-0 p-6 border-r border-gray-700 flex flex-col">
       <h2 class="text-xl font-bold text-white mb-6">Projects</h2>
-      <div id="sheetButtons" class="flex flex-col gap-3">
+      <div id="sheetButtons" class="flex flex-col gap-3 overflow-y-auto flex-1">
         {% for sheet_name in sheet_names %}
-        <button onclick="switchSheet('{{ sheet_name }}')" 
-                class="sheet-btn text-left bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-300 shadow-md"
-                data-sheet="{{ sheet_name }}">
+        <button onclick="switchSheet('{{ sheet_name }}')"
+                class="sheet-btn text-left bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-300 shadow-md truncate"
+                data-sheet="{{ sheet_name }}"
+                title="{{ sheet_name }}">
           {{ sheet_name }}
         </button>
         {% endfor %}
@@ -226,7 +228,8 @@
 
   <script>
     // All sheets data injected from FastAPI
-    const allSheetsData = {{ all_sheets_data | tojson }};
+    let allSheetsData = {{ all_sheets_data | tojson }};
+    let currentDataVersion = {{ data_version | default(0) }};
     const buttonColors = [
       'bg-blue-500 hover:bg-blue-700', 
       'bg-green-500 hover:bg-green-700', 
@@ -562,11 +565,10 @@
         const bgColor = index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750';
         const borderColor = index % 2 === 0 ? 'border-l-blue-500' : 'border-l-purple-500';
         
-        // Only expand if single instance
-        const isExpanded = instances.length === 1;
-        const collapsedClass = isExpanded ? 'task-instance-expanded' : 'task-instance-collapsed';
-        const detailsClass = isExpanded ? 'task-details-visible' : 'task-details-hidden';
-        const iconClass = isExpanded ? 'toggle-icon-expanded' : '';
+        // Always expand all instances by default
+        const collapsedClass = 'task-instance-expanded';
+        const detailsClass = 'task-details-visible';
+        const iconClass = 'toggle-icon-expanded';
         
         html += `
           <div id="instance-${taskName}-${index}" class="task-instance ${collapsedClass} ${bgColor} border-l-4 ${borderColor} rounded-lg mb-3 overflow-hidden">
@@ -683,6 +685,143 @@
 
     // Initialize
     switchSheet(currentSheet);
+
+    // ===== REAL-TIME UPDATES VIA SSE =====
+    let eventSource = null;
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 10;
+
+    function connectSSE() {
+      if (eventSource) {
+        eventSource.close();
+      }
+
+      eventSource = new EventSource('/events');
+
+      eventSource.onopen = function() {
+        console.log('SSE connected - listening for data updates');
+        reconnectAttempts = 0;
+      };
+
+      eventSource.onmessage = function(event) {
+        const newVersion = parseInt(event.data);
+        if (newVersion > currentDataVersion) {
+          console.log(`Data update detected (v${currentDataVersion} -> v${newVersion}), refreshing...`);
+          fetchLatestData();
+        }
+      };
+
+      eventSource.onerror = function(err) {
+        console.log('SSE connection error, will attempt reconnect...');
+        eventSource.close();
+
+        if (reconnectAttempts < maxReconnectAttempts) {
+          reconnectAttempts++;
+          setTimeout(connectSSE, 2000 * reconnectAttempts); // Exponential backoff
+        }
+      };
+    }
+
+    async function fetchLatestData() {
+      try {
+        const response = await fetch('/api/data');
+        const data = await response.json();
+
+        if (data.version > currentDataVersion) {
+          // Update global data
+          allSheetsData = data.all_sheets_data;
+          currentDataVersion = data.version;
+
+          // Update sheet buttons if sheet list changed
+          const newSheetNames = data.sheet_names;
+          updateSheetButtons(newSheetNames);
+
+          // Refresh current view
+          if (allSheetsData[currentSheet]) {
+            buttonData = allSheetsData[currentSheet];
+            createButtons(currentSheet, true);
+
+            // Refresh selected task details if still exists
+            if (selectedTask && allSheetsData[currentSheet][selectedTask]) {
+              showTaskDetails(selectedTask);
+            } else if (selectedTask) {
+              // Task was removed
+              selectedTask = null;
+              document.getElementById('textDisplay').innerHTML = '<p class="text-gray-500 italic">Click a task to view details</p>';
+            }
+          } else {
+            // Current sheet was removed, switch to first available
+            if (newSheetNames.length > 0) {
+              switchSheet(newSheetNames[0]);
+            }
+          }
+
+          // Show update notification
+          showUpdateNotification();
+
+          console.log(`Data refreshed to version ${currentDataVersion}`);
+        }
+      } catch (err) {
+        console.error('Failed to fetch latest data:', err);
+      }
+    }
+
+    function updateSheetButtons(newSheetNames) {
+      const container = document.getElementById('sheetButtons');
+      const existingSheets = Array.from(container.querySelectorAll('.sheet-btn')).map(btn => btn.dataset.sheet);
+
+      // Check if sheets changed
+      const sheetsChanged = newSheetNames.length !== existingSheets.length ||
+                            newSheetNames.some((name, i) => name !== existingSheets[i]);
+
+      if (sheetsChanged) {
+        container.innerHTML = '';
+        newSheetNames.forEach(sheetName => {
+          const button = document.createElement('button');
+          button.onclick = () => switchSheet(sheetName);
+          button.className = 'sheet-btn text-left bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-300 shadow-md';
+          button.dataset.sheet = sheetName;
+          button.textContent = sheetName;
+
+          if (sheetName === currentSheet) {
+            button.classList.remove('bg-gray-700');
+            button.classList.add('bg-purple-600');
+          }
+
+          container.appendChild(button);
+        });
+      }
+    }
+
+    function showUpdateNotification() {
+      // Create notification element if it doesn't exist
+      let notification = document.getElementById('updateNotification');
+      if (!notification) {
+        notification = document.createElement('div');
+        notification.id = 'updateNotification';
+        notification.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50';
+        notification.innerHTML = '<span class="mr-2">&#10003;</span> Data updated';
+        document.body.appendChild(notification);
+      }
+
+      // Show notification
+      notification.classList.remove('translate-y-20', 'opacity-0');
+
+      // Hide after 2 seconds
+      setTimeout(() => {
+        notification.classList.add('translate-y-20', 'opacity-0');
+      }, 2000);
+    }
+
+    // Start SSE connection
+    connectSSE();
+
+    // Cleanup on page unload
+    window.addEventListener('beforeunload', () => {
+      if (eventSource) {
+        eventSource.close();
+      }
+    });
   </script>
 </body>
 
