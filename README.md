@@ -1,12 +1,15 @@
 # Excel Sheet Viewer
 
-A simple web app that displays Excel data as a browsable interface.
+A simple web app that displays Excel data as a browsable interface with real-time updates.
 
 ## Features
 
 - Reads multiple Excel files
 - Combines sheets with the same name across files
-- Auto-refreshes data on each page load
+- **Real-time auto-refresh** - Browser updates automatically when Excel files are saved (no manual refresh needed)
+- File watching powered by Watchdog (monitors only `.xlsx` files in `FILE_PATHS`)
+- Server-Sent Events (SSE) for instant browser updates
+- Skips default sheet names (Sheet1, Sheet2, etc.)
 
 ## Customization
 
@@ -49,7 +52,7 @@ Other columns are optional and will display automatically.
 python main.py
 ```
 
-Open http://localhost:8000
+Open http://localhost:8889
 
 ## Folder Structure
 
