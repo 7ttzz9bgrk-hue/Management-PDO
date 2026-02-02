@@ -38,7 +38,7 @@ class ExcelFileHandler(FileSystemEventHandler):
     def __init__(self, file_paths):
         self.file_paths = [os.path.abspath(fp) for fp in file_paths]
         self.last_reload = 0
-        self.debounce_seconds = 1  # Wait 1 second before reloading to handle multiple rapid changes
+        self.debounce_seconds = 2  # Wait 2 seconds before reloading to handle multiple rapid changes
 
     def on_modified(self, event):
         if event.is_directory:
@@ -47,19 +47,24 @@ class ExcelFileHandler(FileSystemEventHandler):
         # Check if the modified file is one we're watching
         modified_path = os.path.abspath(event.src_path)
 
+        # Only watch .xlsx files
+        if not modified_path.lower().endswith('.xlsx'):
+            return
+
         # Excel creates temp files like ~$filename.xlsx, ignore those
         if os.path.basename(modified_path).startswith('~$'):
             return
 
-        for watched_path in self.file_paths:
-            if modified_path == watched_path:
-                current_time = time.time()
-                # Debounce: only reload if enough time has passed
-                if current_time - self.last_reload > self.debounce_seconds:
-                    self.last_reload = current_time
-                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Detected change in: {os.path.basename(modified_path)}")
-                    reload_data()
-                break
+        # Only react to files explicitly listed in FILE_PATHS
+        if modified_path not in self.file_paths:
+            return
+
+        current_time = time.time()
+        # Debounce: only reload if enough time has passed
+        if current_time - self.last_reload > self.debounce_seconds:
+            self.last_reload = current_time
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Detected change in: {os.path.basename(modified_path)}")
+            reload_data()
 
 def start_file_watcher():
     """Start watching all Excel file directories for changes."""
@@ -280,4 +285,4 @@ async def shutdown_event():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="127.0.0.1", port=8889, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8889, reload=False)
