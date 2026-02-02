@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Data files (your Excel source)
+mockData.xlsx
+
+# Environment variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db

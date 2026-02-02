@@ -1,129 +1,17 @@
 <!doctype html>
 <html>
 
- <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bitcoin Price Watch</title>
-    <!-- Favicon - Bitcoin emoji -->
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>₿</text></svg>">
-    <!-- Tailwind via CDN -->
-    <script src="https://urldefense.com/v3/__https://cdn.tailwindcss.com__;!!O42koZAH9g!ZNT_3WdpX-x-xZdZCX6Hcze8UtiL0ppeyRyfMmQDqS5yJyfUgtZeRBoKxxtRYaDROwIMbRCkrcJ4g63w-MacEjXO9PdXLBIyMfe5wfkukg$ "></script>
-    <style>
-      @keyframes pulse-subtle {
-        0%, 100% { opacity: 0.8; transform: scale(1); }
-        50% { opacity: 1; transform: scale(1.02); }
-      }
-      
-      .pulse-active {
-        animation: pulse-subtle 2s ease-in-out infinite;
-      }
-      
-      .filter-bar-collapsed {
-        height: 60px;
-        opacity: 0.5;
-        transform: scale(0.95);
-        overflow: hidden;
-      }
-      
-      .filter-bar-expanded {
-        height: auto;
-        opacity: 1;
-        transform: scale(1);
-      }
-      
-      .filter-bar {
-        transition: all 0.3s ease-in-out;
-      }
-      
-      .filter-content {
-        transition: opacity 0.2s ease-in-out;
-      }
-      
-      .filter-content-hidden {
-        opacity: 0;
-        pointer-events: none;
-      }
-      
-      .filter-content-visible {
-        opacity: 1;
-        pointer-events: auto;
-      }
-      
-      .task-instance {
-        transition: all 0.3s ease-in-out;
-        overflow: hidden;
-      }
-      
-      .task-instance-collapsed {
-        max-height: 60px;
-      }
-      
-      .task-instance-expanded {
-        max-height: 2000px;
-      }
-      
-      .task-details {
-        transition: opacity 0.2s ease-in-out;
-      }
-      
-      .task-details-hidden {
-        opacity: 0;
-        max-height: 0;
-        overflow: hidden;
-      }
-      
-      .task-details-visible {
-        opacity: 1;
-        max-height: none;
-      }
-      
-      .toggle-icon {
-        transition: transform 0.3s ease-in-out;
-      }
-      
-      .toggle-icon-expanded {
-        transform: rotate(90deg);
-      }
-
-      /* Edit mode styles */
-      .edit-textarea {
-        font-family: monospace;
-        background-color: #1f2937;
-        border: 2px solid #6366f1;
-        border-radius: 0.5rem;
-        padding: 1rem;
-        color: #e5e7eb;
-        resize: vertical;
-        min-height: 200px;
-        width: 100%;
-      }
-
-      .edit-textarea:focus {
-        outline: none;
-        border-color: #8b5cf6;
-        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
-      }
-
-      .edit-btn {
-        transition: all 0.2s;
-      }
-
-      .edit-btn:hover {
-        transform: scale(1.05);
-      }
-
-      @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
-
-      .saving-spinner {
-        display: inline-block;
-        animation: spin 1s linear infinite;
-      }
-    </style>
-  </head>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bitcoin Price Watch</title>
+  <!-- Favicon - Bitcoin emoji -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>₿</text></svg>">
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Custom styles -->
+  <link rel="stylesheet" href="/static/css/styles.css">
+</head>
 
 <body class="bg-gradient-to-br from-gray-900 via-purple-900 to-gray-900 min-h-screen">
   <div class="flex">
@@ -147,7 +35,7 @@
       <div class="max-w-full mx-auto">
         <h1 id="pageTitle" class="text-4xl font-bold mb-2 text-center text-white">{{ sheet_names[0] }}</h1>
         <p class="text-center text-gray-400 mb-6">Select a task to view details</p>
-        
+
         <!-- Collapsible Filter Bar -->
         <div id="filterBar" class="filter-bar filter-bar-collapsed bg-gray-800 border border-gray-700 rounded-lg p-4 mb-6 cursor-pointer">
           <!-- Collapsed Header (Always Visible) -->
@@ -163,7 +51,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
             </svg>
           </div>
-          
+
           <!-- Expandable Filter Content -->
           <div id="filterContent" class="filter-content filter-content-hidden mt-4">
             <div class="flex flex-wrap gap-4 items-center">
@@ -173,14 +61,14 @@
                   <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                   </svg>
-                  <input type="text" id="searchBox" placeholder="Search tasks..." 
+                  <input type="text" id="searchBox" placeholder="Search tasks..."
                          class="w-full bg-gray-700 text-white border border-gray-600 rounded-lg pl-10 pr-4 py-2 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition">
                 </div>
               </div>
-              
+
               <!-- Status Filter -->
               <div class="relative">
-                <select id="statusFilter" 
+                <select id="statusFilter"
                         class="bg-gray-700 text-white border border-gray-600 rounded-lg px-4 py-2 pr-10 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition appearance-none cursor-pointer">
                   <option value="All">All Status</option>
                   <option value="Not Started">Not Started</option>
@@ -192,10 +80,10 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </div>
-              
+
               <!-- Priority Filter -->
               <div class="relative">
-                <select id="priorityFilter" 
+                <select id="priorityFilter"
                         class="bg-gray-700 text-white border border-gray-600 rounded-lg px-4 py-2 pr-10 focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-500/50 transition appearance-none cursor-pointer">
                   <option value="All">All Priority</option>
                   <option value="High">High Priority</option>
@@ -206,7 +94,7 @@
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                 </svg>
               </div>
-              
+
               <!-- Hide Completed Checkbox -->
               <div class="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 hover:bg-gray-650 transition">
                 <input type="checkbox" id="hideCompleted" checked
@@ -214,7 +102,7 @@
                 <label for="hideCompleted" class="ml-2 text-white font-medium cursor-pointer select-none">Hide Completed</label>
               </div>
             </div>
-            
+
             <!-- Task Counter -->
             <div class="mt-4 flex items-center justify-between">
               <span id="taskCounter" class="text-gray-400 text-sm">Showing 0 tasks</span>
@@ -224,35 +112,35 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Horizontal Scrollable Task Container with Arrows -->
         <div class="relative">
           <!-- Left Arrow -->
-          <button id="scrollLeft" 
+          <button id="scrollLeft"
                   class="absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-gray-800 hover:bg-gray-700 text-white p-3 rounded-full shadow-lg opacity-0 transition-opacity duration-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
             </svg>
           </button>
-          
+
           <!-- Scrollable Container -->
           <div id="scrollContainer" class="overflow-x-auto pb-4 scroll-smooth" style="scrollbar-width: thin;">
             <div id="buttonContainer" class="flex gap-4 min-w-max px-12">
               <!-- Buttons will be generated dynamically -->
             </div>
           </div>
-          
+
           <!-- Right Arrow -->
-          <button id="scrollRight" 
+          <button id="scrollRight"
                   class="absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-gray-800 hover:bg-gray-700 text-white p-3 rounded-full shadow-lg opacity-0 transition-opacity duration-300">
             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
             </svg>
           </button>
-          
+
           <!-- Left Shadow Gradient -->
           <div id="leftShadow" class="absolute left-0 top-0 bottom-4 w-12 bg-gradient-to-r from-gray-900 to-transparent pointer-events-none opacity-0 transition-opacity duration-300"></div>
-          
+
           <!-- Right Shadow Gradient -->
           <div id="rightShadow" class="absolute right-0 top-0 bottom-4 w-12 bg-gradient-to-l from-gray-900 to-transparent pointer-events-none opacity-0 transition-opacity duration-300"></div>
         </div>
@@ -265,790 +153,17 @@
     </div>
   </div>
 
+  <!-- Configuration from server (Jinja template data) -->
   <script>
-    // All sheets data injected from FastAPI
-    let allSheetsData = {{ all_sheets_data | tojson }};
-    let currentDataVersion = {{ data_version | default(0) }};
-    const buttonColors = [
-      'bg-blue-500 hover:bg-blue-700', 
-      'bg-green-500 hover:bg-green-700', 
-      'bg-red-500 hover:bg-red-700', 
-      'bg-yellow-500 hover:bg-yellow-700', 
-      'bg-purple-500 hover:bg-purple-700', 
-      'bg-pink-500 hover:bg-pink-700', 
-      'bg-indigo-500 hover:bg-indigo-700',
-      'bg-orange-500 hover:bg-orange-700',
-      'bg-teal-500 hover:bg-teal-700',
-      'bg-cyan-500 hover:bg-cyan-700'
-    ];
-    let currentSheet = "{{ sheet_names[0] }}";
-    let buttonData = allSheetsData[currentSheet];
-    let selectedTask = null;
-    let allTasks = [];
-    let filterBarLocked = false;
-    let collapseTimeout = null;
-
-    // Filter bar expand/collapse logic
-    const filterBar = document.getElementById('filterBar');
-    const filterContent = document.getElementById('filterContent');
-    const expandIcon = document.getElementById('expandIcon');
-    const activeFilterBadge = document.getElementById('activeFilterBadge');
-
-    function expandFilterBar() {
-      clearTimeout(collapseTimeout);
-      filterBar.classList.remove('filter-bar-collapsed');
-      filterBar.classList.add('filter-bar-expanded');
-      filterContent.classList.remove('filter-content-hidden');
-      filterContent.classList.add('filter-content-visible');
-      expandIcon.style.transform = 'rotate(180deg)';
-    }
-
-    function collapseFilterBar() {
-      if (filterBarLocked) return;
-      
-      collapseTimeout = setTimeout(() => {
-        if (!filterBarLocked) {
-          filterBar.classList.remove('filter-bar-expanded');
-          filterBar.classList.add('filter-bar-collapsed');
-          filterContent.classList.remove('filter-content-visible');
-          filterContent.classList.add('filter-content-hidden');
-          expandIcon.style.transform = 'rotate(0deg)';
-        }
-      }, 500);
-    }
-
-    function updateActiveFilterBadge() {
-      const searchTerm = document.getElementById('searchBox').value;
-      const statusFilter = document.getElementById('statusFilter').value;
-      const priorityFilter = document.getElementById('priorityFilter').value;
-      const hideCompleted = document.getElementById('hideCompleted').checked;
-      
-      let activeCount = 0;
-      if (searchTerm) activeCount++;
-      if (statusFilter !== 'All') activeCount++;
-      if (priorityFilter !== 'All') activeCount++;
-      if (hideCompleted) activeCount++;
-      
-      if (activeCount > 0) {
-        activeFilterBadge.textContent = `${activeCount} active`;
-        activeFilterBadge.classList.remove('hidden');
-        filterBar.classList.add('pulse-active');
-        document.getElementById('clearFilters').classList.remove('hidden');
-      } else {
-        activeFilterBadge.classList.add('hidden');
-        filterBar.classList.remove('pulse-active');
-        document.getElementById('clearFilters').classList.add('hidden');
-      }
-    }
-
-    // Event listeners for filter bar
-    filterBar.addEventListener('mouseenter', expandFilterBar);
-    filterBar.addEventListener('mouseleave', collapseFilterBar);
-
-    // Lock filter bar when interacting with inputs
-    const filterInputs = [
-      document.getElementById('searchBox'),
-      document.getElementById('statusFilter'),
-      document.getElementById('priorityFilter'),
-      document.getElementById('hideCompleted')
-    ];
-
-    filterInputs.forEach(input => {
-      input.addEventListener('focus', () => {
-        filterBarLocked = true;
-        expandFilterBar();
-      });
-      
-      input.addEventListener('blur', () => {
-        setTimeout(() => {
-          const anyFocused = filterInputs.some(i => i === document.activeElement);
-          if (!anyFocused) {
-            filterBarLocked = false;
-            collapseFilterBar();
-          }
-        }, 100);
-      });
-    });
-
-    // Clear all filters
-    document.getElementById('clearFilters').addEventListener('click', () => {
-      document.getElementById('searchBox').value = '';
-      document.getElementById('statusFilter').value = 'All';
-      document.getElementById('priorityFilter').value = 'All';
-      document.getElementById('hideCompleted').checked = false;
-      applyFilters();
-    });
-
-    // Parse task details to extract all fields
-    function parseTaskDetails(details) {
-      const lines = details.split('\n');
-      let description = '';
-      let status = '';
-      let priority = '';
-      let assignedTo = '';
-      let deadline = '';
-      
-      lines.forEach(line => {
-        if (line.includes('Description:')) {
-          description = line.split('Description:')[1].trim();
-        }
-        if (line.includes('Status:')) {
-          status = line.split('Status:')[1].trim();
-        }
-        if (line.includes('Priority:')) {
-          priority = line.split('Priority:')[1].trim();
-        }
-        if (line.includes('Assigned To:')) {
-          assignedTo = line.split('Assigned To:')[1].trim();
-        }
-        if (line.includes('Deadline:')) {
-          const rawD = line.split('Deadline:')[1].trim();
-          const dd = new Date(rawD);
-          deadline = isNaN(dd) ? rawD : `${String(dd.getDate()).padStart(2,'0')}/${String(dd.getMonth()+1).padStart(2,'0')}/${String(dd.getFullYear()).slice(-2)}`;
-        }
-      });
-      
-      return { description, status, priority, assignedTo, deadline };
-    }
-
-    // Truncate description to first few words
-    function truncateDescription(description, maxWords = 5) {
-      if (!description) return '';
-      const words = description.split(' ');
-      if (words.length <= maxWords) return description;
-      return words.slice(0, maxWords).join(' ') + '...';
-    }
-
-    // Get status badge HTML
-    function getStatusBadge(status) {
-      const statusColors = {
-        'Not Started': 'bg-gray-600 text-gray-200',
-        'In Progress': 'bg-yellow-600 text-yellow-100',
-        'Completed': 'bg-green-600 text-green-100',
-        'Blocked': 'bg-red-600 text-red-100'
-      };
-      const color = statusColors[status] || 'bg-gray-600 text-gray-200';
-      return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}">${status}</span>`;
-    }
-
-    // Get priority indicator HTML
-    function getPriorityIndicator(priority) {
-      const priorityIcons = {
-        'High': '<span class="text-red-400 font-bold">⚠️ High</span>',
-        'Medium': '<span class="text-yellow-400 font-bold">➡️ Medium</span>',
-        'Low': '<span class="text-blue-400 font-bold">⬇️ Low</span>'
-      };
-      return priorityIcons[priority] || '';
-    }
-
-    // Filter tasks based on current filter settings
-    function getFilteredTasks() {
-      const searchTerm = document.getElementById('searchBox').value.toLowerCase();
-      const statusFilter = document.getElementById('statusFilter').value;
-      const priorityFilter = document.getElementById('priorityFilter').value;
-      const hideCompleted = document.getElementById('hideCompleted').checked;
-      
-      return allTasks.filter(task => {
-        if (searchTerm && !task.name.toLowerCase().includes(searchTerm)) {
-          return false;
-        }
-        if (hideCompleted && task.status === 'Completed') {
-          return false;
-        }
-        if (statusFilter !== 'All' && task.status !== statusFilter) {
-          return false;
-        }
-        if (priorityFilter !== 'All' && task.priority !== priorityFilter) {
-          return false;
-        }
-        return true;
-      });
-    }
-
-    // Update task counter
-    function updateTaskCounter(filteredCount, totalCount) {
-      const counter = document.getElementById('taskCounter');
-      if (filteredCount === totalCount) {
-        counter.textContent = `Showing ${totalCount} task${totalCount !== 1 ? 's' : ''}`;
-      } else {
-        counter.textContent = `Showing ${filteredCount} of ${totalCount} task${totalCount !== 1 ? 's' : ''}`;
-      }
-    }
-
-    // Create task buttons with filtering
-    function createButtons(sheetName, applyFilters = false) {
-      const container = document.getElementById('buttonContainer');
-      container.innerHTML = '';
-
-      // Build task list with metadata - Handle new data structure with metadata
-      allTasks = [];
-      const taskNames = Object.keys(allSheetsData[sheetName]);
-
-      taskNames.forEach(taskName => {
-        // Each task now has an array of instances (objects with details and metadata)
-        const instances = allSheetsData[sheetName][taskName];
-
-        instances.forEach((instance, index) => {
-          // Handle both old format (string) and new format (object with details/metadata)
-          const details = typeof instance === 'string' ? instance : instance.details;
-          const metadata = typeof instance === 'object' && instance.metadata ? instance.metadata : null;
-
-          const { description, status, priority, assignedTo, deadline } = parseTaskDetails(details);
-          allTasks.push({
-            name: taskName,
-            instanceIndex: index,
-            description: description,
-            status: status,
-            priority: priority,
-            assignedTo: assignedTo,
-            deadline: deadline,
-            details: details,
-            metadata: metadata  // Include metadata for editing
-          });
-        });
-      });
-      
-      // Get filtered tasks
-      const tasksToDisplay = applyFilters ? getFilteredTasks() : allTasks;
-      
-      // Update counter
-      updateTaskCounter(tasksToDisplay.length, allTasks.length);
-      
-      // Get unique task names for buttons (removing duplicates)
-      const uniqueTaskNames = [...new Set(tasksToDisplay.map(t => t.name))];
-      
-      // Create buttons for unique task names
-      uniqueTaskNames.forEach((taskName, index) => {
-        const button = document.createElement('button');
-        button.textContent = taskName;
-        button.onclick = () => showTaskDetails(taskName);
-        button.id = `task-${index}`;
-        
-        const colorClass = buttonColors[index % buttonColors.length];
-        button.className = `task-button ${colorClass} text-white font-bold py-4 px-6 rounded-lg transition duration-300 shadow-lg whitespace-nowrap`;
-        
-        container.appendChild(button);
-      });
-      
-      // Reset selected task if not in filtered list
-      if (selectedTask && !uniqueTaskNames.includes(selectedTask)) {
-        selectedTask = null;
-        document.getElementById('textDisplay').innerHTML = '<p class="text-gray-500 italic">Click a task to view details</p>';
-      }
-      
-      updateScrollIndicators();
-    }
-
-    // Apply filters
-    function applyFilters() {
-      createButtons(currentSheet, true);
-      updateActiveFilterBadge();
-      
-      // Refresh display if a task is selected
-      if (selectedTask) {
-        showTaskDetails(selectedTask);
-      }
-    }
-
-    // Toggle task instance
-    function toggleTaskInstance(instanceId) {
-      const instance = document.getElementById(`instance-${instanceId}`);
-      const details = document.getElementById(`details-${instanceId}`);
-      const icon = document.getElementById(`icon-${instanceId}`);
-      
-      if (instance.classList.contains('task-instance-collapsed')) {
-        instance.classList.remove('task-instance-collapsed');
-        instance.classList.add('task-instance-expanded');
-        details.classList.remove('task-details-hidden');
-        details.classList.add('task-details-visible');
-        icon.classList.add('toggle-icon-expanded');
-      } else {
-        instance.classList.remove('task-instance-expanded');
-        instance.classList.add('task-instance-collapsed');
-        details.classList.remove('task-details-visible');
-        details.classList.add('task-details-hidden');
-        icon.classList.remove('toggle-icon-expanded');
-      }
-    }
-
-    // Show task details with grouping and collapsible instances
-    function showTaskDetails(taskName) {
-      selectedTask = taskName;
-      console.log(`Task selected: ${taskName} in project: ${currentSheet}`);
-
-      const display = document.getElementById('textDisplay');
-
-      // Get filtered tasks
-      const filteredTasks = getFilteredTasks();
-
-      // Get all instances of this task name (filtered)
-      const instances = filteredTasks.filter(t => t.name === taskName);
-
-      if (instances.length === 0) {
-        return;
-      }
-
-      let html = '';
-
-      // Show instance count if multiple
-      const totalInstances = allTasks.filter(t => t.name === taskName).length;
-      if (totalInstances > 1) {
-        html += `<div class="mb-4 text-sm text-gray-400">
-          <span class="font-semibold">${taskName}</span> - Showing ${instances.length} ${instances.length !== totalInstances ? `of ${totalInstances}` : ''} instance${instances.length !== 1 ? 's' : ''}
-        </div>`;
-      }
-
-      // Create collapsible instance for each
-      instances.forEach((task, index) => {
-        const shortDesc = truncateDescription(task.description, 4);
-        const statusBadge = getStatusBadge(task.status);
-        const priorityIndicator = getPriorityIndicator(task.priority);
-        const deadlineText = task.deadline ? `Due: ${task.deadline}` : '';
-        const hasMetadata = task.metadata !== null;
-        const taskIndex = allTasks.indexOf(task);
-
-        // Alternating background colors
-        const bgColor = index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750';
-        const borderColor = index % 2 === 0 ? 'border-l-blue-500' : 'border-l-purple-500';
-
-        // Always expand all instances by default
-        const collapsedClass = 'task-instance-expanded';
-        const detailsClass = 'task-details-visible';
-        const iconClass = 'toggle-icon-expanded';
-
-        // Get source file name for display
-        const sourceFile = hasMetadata ? task.metadata.file_path.split(/[\\\/]/).pop() : '';
-
-        html += `
-          <div id="instance-${taskName}-${index}" class="task-instance ${collapsedClass} ${bgColor} border-l-4 ${borderColor} rounded-lg mb-3 overflow-hidden">
-            <!-- Instance Header (Always Visible) -->
-            <div class="p-4 cursor-pointer hover:bg-gray-700 transition flex items-center justify-between" onclick="toggleTaskInstance('${taskName}-${index}')">
-              <div class="flex items-center gap-3 flex-1">
-                <svg id="icon-${taskName}-${index}" class="toggle-icon ${iconClass} w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
-                </svg>
-                <div class="flex-1 flex flex-wrap items-center gap-2">
-                  <span class="font-semibold text-white">${taskName}</span>
-                  ${shortDesc ? `<span class="text-gray-400">- ${shortDesc}</span>` : ''}
-                  ${statusBadge}
-                  ${priorityIndicator ? `<span class="text-sm">${priorityIndicator}</span>` : ''}
-                  ${deadlineText ? `<span class="text-sm text-orange-400 font-medium">${deadlineText}</span>` : ''}
-                </div>
-              </div>
-              ${hasMetadata ? `
-                <button onclick="event.stopPropagation(); startEdit('${taskName}-${index}', ${taskIndex})"
-                        class="edit-btn bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm font-medium ml-2">
-                  Edit
-                </button>
-              ` : ''}
-            </div>
-
-            <!-- Instance Details (Collapsible) -->
-            <div id="details-${taskName}-${index}" class="task-details ${detailsClass} px-4 pb-4 pt-0">
-              <!-- View Mode -->
-              <div id="view-${taskName}-${index}" class="pl-8 border-l-2 border-gray-600 ml-2 space-y-2">
-                <div class="whitespace-pre-line text-gray-300 leading-relaxed">${task.details.replace(/Deadline:\s*(\d{4}-\d{2}-\d{2})\s*\d{2}:\d{2}:\d{2}/g, (m, d) => { const p = d.split('-'); return 'Deadline: ' + p[2] + '/' + p[1] + '/' + p[0].slice(-2); })}</div>
-              </div>
-
-              <!-- Edit Mode (hidden by default) -->
-              <div id="edit-${taskName}-${index}" class="hidden pl-8 border-l-2 border-indigo-500 ml-2 space-y-4">
-                <textarea id="textarea-${taskName}-${index}"
-                          class="edit-textarea"
-                          data-task-index="${taskIndex}">${task.details}</textarea>
-
-                <div class="flex gap-3">
-                  <button onclick="saveEdit('${taskName}-${index}')"
-                          id="save-btn-${taskName}-${index}"
-                          class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium">
-                    Save Changes
-                  </button>
-                  <button onclick="cancelEdit('${taskName}-${index}')"
-                          class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded font-medium">
-                    Cancel
-                  </button>
-                </div>
-
-                <div class="text-xs text-gray-500">
-                  <p>Format: <code class="bg-gray-700 px-1 rounded">ColumnName: value</code></p>
-                  <p>Add new columns by adding new lines in this format.</p>
-                  ${hasMetadata ? `<p class="mt-1">Source: ${sourceFile}</p>` : ''}
-                </div>
-              </div>
-            </div>
-          </div>
-        `;
-      });
-
-      display.innerHTML = html;
-
-      // Highlight selected button
-      document.querySelectorAll('.task-button').forEach(btn => {
-        btn.classList.remove('ring-4', 'ring-white');
-        if (btn.textContent === taskName) {
-          btn.classList.add('ring-4', 'ring-white');
-        }
-      });
-    }
-
-    // ===== EDIT FUNCTIONALITY =====
-    // Store original details for cancel functionality
-    let originalDetails = {};
-
-    function startEdit(instanceId, taskIndex) {
-      const viewDiv = document.getElementById(`view-${instanceId}`);
-      const editDiv = document.getElementById(`edit-${instanceId}`);
-      const textarea = document.getElementById(`textarea-${instanceId}`);
-
-      // Store original for cancel
-      originalDetails[instanceId] = textarea.value;
-
-      // Switch to edit mode
-      viewDiv.classList.add('hidden');
-      editDiv.classList.remove('hidden');
-
-      // Focus textarea
-      textarea.focus();
-    }
-
-    function cancelEdit(instanceId) {
-      const viewDiv = document.getElementById(`view-${instanceId}`);
-      const editDiv = document.getElementById(`edit-${instanceId}`);
-      const textarea = document.getElementById(`textarea-${instanceId}`);
-
-      // Restore original value
-      if (originalDetails[instanceId]) {
-        textarea.value = originalDetails[instanceId];
-      }
-
-      // Switch back to view mode
-      editDiv.classList.add('hidden');
-      viewDiv.classList.remove('hidden');
-    }
-
-    async function saveEdit(instanceId) {
-      const textarea = document.getElementById(`textarea-${instanceId}`);
-      const saveBtn = document.getElementById(`save-btn-${instanceId}`);
-      const taskIndex = parseInt(textarea.dataset.taskIndex);
-      const task = allTasks[taskIndex];
-
-      if (!task || !task.metadata) {
-        showEditNotification('Error: Cannot save - missing metadata', 'error');
-        return;
-      }
-
-      // Parse the textarea content into key-value pairs
-      const newDetails = textarea.value;
-      const updates = {};
-      const newColumns = {};
-      const existingColumns = task.metadata.columns;
-
-      // Track which columns have values in the new content
-      const newColumnValues = {};
-
-      newDetails.split('\n').forEach(line => {
-        const colonIndex = line.indexOf(':');
-        if (colonIndex > 0) {
-          const key = line.substring(0, colonIndex).trim();
-          const value = line.substring(colonIndex + 1).trim();
-
-          newColumnValues[key] = value;
-
-          if (existingColumns.includes(key)) {
-            updates[key] = value;
-          } else {
-            newColumns[key] = value;
-          }
-        }
-      });
-
-      // Also detect removed values (columns that had values but now don't)
-      existingColumns.forEach(col => {
-        if (col !== existingColumns[0]) {  // Skip task name column
-          const oldValue = task.metadata.raw_values[col];
-          const hasNewValue = newColumnValues.hasOwnProperty(col);
-
-          if (oldValue && !hasNewValue) {
-            updates[col] = '';  // Clear the cell
-          }
-        }
-      });
-
-      // Show saving state
-      saveBtn.disabled = true;
-      const originalBtnText = saveBtn.innerHTML;
-      saveBtn.innerHTML = '<span class="saving-spinner">↻</span> Saving...';
-
-      try {
-        const response = await fetch('/api/save-task', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            file_path: task.metadata.file_path,
-            sheet_name: task.metadata.sheet_name,
-            row_index: task.metadata.row_index,
-            task_name: task.metadata.task_name,
-            updates: updates,
-            new_columns: Object.keys(newColumns).length > 0 ? newColumns : null
-          })
-        });
-
-        const result = await response.json();
-
-        if (response.ok) {
-          showEditNotification('Changes saved successfully!', 'success');
-          // Data will be refreshed automatically via SSE
-          cancelEdit(instanceId);  // Exit edit mode
-        } else {
-          throw new Error(result.detail || 'Failed to save');
-        }
-
-      } catch (error) {
-        showEditNotification(`Error: ${error.message}`, 'error');
-      } finally {
-        saveBtn.disabled = false;
-        saveBtn.innerHTML = originalBtnText;
-      }
-    }
-
-    function showEditNotification(message, type = 'success') {
-      let notification = document.getElementById('editNotification');
-      if (!notification) {
-        notification = document.createElement('div');
-        notification.id = 'editNotification';
-        notification.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 text-white';
-        document.body.appendChild(notification);
-      }
-
-      // Remove old color classes and add new one
-      notification.classList.remove('bg-green-600', 'bg-red-600');
-      notification.classList.add(type === 'success' ? 'bg-green-600' : 'bg-red-600');
-      notification.innerHTML = message;
-
-      // Show notification
-      notification.classList.remove('translate-y-20', 'opacity-0');
-
-      // Hide after 3 seconds
-      setTimeout(() => {
-        notification.classList.add('translate-y-20', 'opacity-0');
-      }, 3000);
-    }
-
-    // Switch between sheets/projects
-    function switchSheet(sheetName) {
-      currentSheet = sheetName;
-      buttonData = allSheetsData[sheetName];
-      
-      document.getElementById('pageTitle').textContent = sheetName;
-      
-      // Reset filters
-      document.getElementById('searchBox').value = '';
-      document.getElementById('statusFilter').value = 'All';
-      document.getElementById('priorityFilter').value = 'All';
-      document.getElementById('hideCompleted').checked = true;
-      
-      createButtons(sheetName, true);
-      updateActiveFilterBadge();
-      
-      document.getElementById('textDisplay').innerHTML = '<p class="text-gray-500 italic">Click a task to view details</p>';
-      
-      document.querySelectorAll('.sheet-btn').forEach(btn => {
-        if (btn.dataset.sheet === sheetName) {
-          btn.classList.remove('bg-gray-700');
-          btn.classList.add('bg-purple-600');
-        } else {
-          btn.classList.remove('bg-purple-600');
-          btn.classList.add('bg-gray-700');
-        }
-      });
-      
-      console.log(`Switched to project: ${sheetName}`);
-    }
-
-    // Horizontal scroll functionality
-    const scrollContainer = document.getElementById('scrollContainer');
-    const scrollLeftBtn = document.getElementById('scrollLeft');
-    const scrollRightBtn = document.getElementById('scrollRight');
-    const leftShadow = document.getElementById('leftShadow');
-    const rightShadow = document.getElementById('rightShadow');
-
-    function updateScrollIndicators() {
-      const container = scrollContainer;
-      const isScrollable = container.scrollWidth > container.clientWidth;
-      const isAtStart = container.scrollLeft <= 10;
-      const isAtEnd = container.scrollLeft >= container.scrollWidth - container.clientWidth - 10;
-      
-      if (isScrollable) {
-        scrollLeftBtn.style.opacity = isAtStart ? '0' : '1';
-        scrollRightBtn.style.opacity = isAtEnd ? '0' : '1';
-        leftShadow.style.opacity = isAtStart ? '0' : '1';
-        rightShadow.style.opacity = isAtEnd ? '0' : '1';
-      } else {
-        scrollLeftBtn.style.opacity = '0';
-        scrollRightBtn.style.opacity = '0';
-        leftShadow.style.opacity = '0';
-        rightShadow.style.opacity = '0';
-      }
-    }
-
-    scrollLeftBtn.addEventListener('click', () => {
-      scrollContainer.scrollBy({ left: -300, behavior: 'smooth' });
-    });
-
-    scrollRightBtn.addEventListener('click', () => {
-      scrollContainer.scrollBy({ left: 300, behavior: 'smooth' });
-    });
-
-    scrollContainer.addEventListener('scroll', updateScrollIndicators);
-    window.addEventListener('resize', updateScrollIndicators);
-
-    // Attach filter event listeners
-    document.getElementById('searchBox').addEventListener('input', applyFilters);
-    document.getElementById('statusFilter').addEventListener('change', applyFilters);
-    document.getElementById('priorityFilter').addEventListener('change', applyFilters);
-    document.getElementById('hideCompleted').addEventListener('change', applyFilters);
-
-    // Initialize
-    switchSheet(currentSheet);
-
-    // ===== REAL-TIME UPDATES VIA SSE =====
-    let eventSource = null;
-    let reconnectAttempts = 0;
-    const maxReconnectAttempts = 10;
-
-    function connectSSE() {
-      if (eventSource) {
-        eventSource.close();
-      }
-
-      eventSource = new EventSource('/events');
-
-      eventSource.onopen = function() {
-        console.log('SSE connected - listening for data updates');
-        reconnectAttempts = 0;
-      };
-
-      eventSource.onmessage = function(event) {
-        const newVersion = parseInt(event.data);
-        if (newVersion > currentDataVersion) {
-          console.log(`Data update detected (v${currentDataVersion} -> v${newVersion}), refreshing...`);
-          fetchLatestData();
-        }
-      };
-
-      eventSource.onerror = function(err) {
-        console.log('SSE connection error, will attempt reconnect...');
-        eventSource.close();
-
-        if (reconnectAttempts < maxReconnectAttempts) {
-          reconnectAttempts++;
-          setTimeout(connectSSE, 2000 * reconnectAttempts); // Exponential backoff
-        }
-      };
-    }
-
-    async function fetchLatestData() {
-      try {
-        const response = await fetch('/api/data');
-        const data = await response.json();
-
-        if (data.version > currentDataVersion) {
-          // Update global data
-          allSheetsData = data.all_sheets_data;
-          currentDataVersion = data.version;
-
-          // Update sheet buttons if sheet list changed
-          const newSheetNames = data.sheet_names;
-          updateSheetButtons(newSheetNames);
-
-          // Refresh current view
-          if (allSheetsData[currentSheet]) {
-            buttonData = allSheetsData[currentSheet];
-            createButtons(currentSheet, true);
-
-            // Refresh selected task details if still exists
-            if (selectedTask && allSheetsData[currentSheet][selectedTask]) {
-              showTaskDetails(selectedTask);
-            } else if (selectedTask) {
-              // Task was removed
-              selectedTask = null;
-              document.getElementById('textDisplay').innerHTML = '<p class="text-gray-500 italic">Click a task to view details</p>';
-            }
-          } else {
-            // Current sheet was removed, switch to first available
-            if (newSheetNames.length > 0) {
-              switchSheet(newSheetNames[0]);
-            }
-          }
-
-          // Show update notification
-          showUpdateNotification();
-
-          console.log(`Data refreshed to version ${currentDataVersion}`);
-        }
-      } catch (err) {
-        console.error('Failed to fetch latest data:', err);
-      }
-    }
-
-    function updateSheetButtons(newSheetNames) {
-      const container = document.getElementById('sheetButtons');
-      const existingSheets = Array.from(container.querySelectorAll('.sheet-btn')).map(btn => btn.dataset.sheet);
-
-      // Check if sheets changed
-      const sheetsChanged = newSheetNames.length !== existingSheets.length ||
-                            newSheetNames.some((name, i) => name !== existingSheets[i]);
-
-      if (sheetsChanged) {
-        container.innerHTML = '';
-        newSheetNames.forEach(sheetName => {
-          const button = document.createElement('button');
-          button.onclick = () => switchSheet(sheetName);
-          button.className = 'sheet-btn text-left bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-300 shadow-md';
-          button.dataset.sheet = sheetName;
-          button.textContent = sheetName;
-
-          if (sheetName === currentSheet) {
-            button.classList.remove('bg-gray-700');
-            button.classList.add('bg-purple-600');
-          }
-
-          container.appendChild(button);
-        });
-      }
-    }
-
-    function showUpdateNotification() {
-      // Create notification element if it doesn't exist
-      let notification = document.getElementById('updateNotification');
-      if (!notification) {
-        notification = document.createElement('div');
-        notification.id = 'updateNotification';
-        notification.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50';
-        notification.innerHTML = '<span class="mr-2">&#10003;</span> Data updated';
-        document.body.appendChild(notification);
-      }
-
-      // Show notification
-      notification.classList.remove('translate-y-20', 'opacity-0');
-
-      // Hide after 2 seconds
-      setTimeout(() => {
-        notification.classList.add('translate-y-20', 'opacity-0');
-      }, 2000);
-    }
-
-    // Start SSE connection
-    connectSSE();
-
-    // Cleanup on page unload
-    window.addEventListener('beforeunload', () => {
-      if (eventSource) {
-        eventSource.close();
-      }
-    });
+    window.AppConfig = {
+      allSheetsData: {{ all_sheets_data | tojson }},
+      dataVersion: {{ data_version | default(0) }},
+      initialSheet: "{{ sheet_names[0] }}"
+    };
   </script>
+
+  <!-- Main application script -->
+  <script src="/static/js/app.js"></script>
 </body>
 
 </html>
