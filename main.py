@@ -34,13 +34,34 @@ def load_all_sheets_data():
                     print(f"Warning: Skipping empty sheet '{sheet_name}' in '{file_path}'")
                     continue
                 
-                df = df.dropna(how='all')
+                # Rule 1: Stop at the first unnamed/undefined column
+                valid_cols = []
+                for col in df.columns:
+                    col_str = str(col).strip()
+                    if col_str.startswith('Unnamed') or col_str == '' or col_str == 'nan':
+                        break
+                    valid_cols.append(col)
+                
+                if len(valid_cols) < 2:
+                    print(f"Warning: Skipping sheet '{sheet_name}' in '{file_path}' - not enough named columns")
+                    continue
+                
+                df = df[valid_cols]
+                
+                # Rule 2: Stop at the first empty Task Name (first column) row
+                task_name_col = df.columns[0]
+                cut_index = None
+                for i, value in enumerate(df[task_name_col]):
+                    if pd.isna(value) or str(value).strip() == '':
+                        cut_index = i
+                        break
+                
+                if cut_index is not None:
+                    df = df.iloc[:cut_index]
                 
                 if df.empty:
                     print(f"Warning: Skipping sheet '{sheet_name}' in '{file_path}' - no valid data")
                     continue
-                
-                task_name_col = df.columns[0]
                 
                 # Initialize sheet if it doesn't exist
                 if sheet_name not in all_data:
@@ -97,4 +118,4 @@ async def read_root(request: Request):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="127.0.0.1", port=8889, reload=True)
