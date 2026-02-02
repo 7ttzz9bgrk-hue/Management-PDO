@@ -236,8 +236,13 @@ def load_all_sheets_data():
                     raw_values = {}
                     for col in df.columns:
                         value = row[col]
-                        # Store raw value (None if NaN)
-                        raw_values[str(col)] = value if pd.notna(value) else None
+                        # Store raw value (None if NaN), convert Timestamps to ISO strings
+                        if pd.isna(value):
+                            raw_values[str(col)] = None
+                        elif isinstance(value, pd.Timestamp):
+                            raw_values[str(col)] = value.isoformat()
+                        else:
+                            raw_values[str(col)] = value
                         # Add to details string (skip task name column and empty values)
                         if col != task_name_col and pd.notna(value) and str(value).strip():
                             details.append(f"{col}: {value}")
