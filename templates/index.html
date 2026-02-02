@@ -83,6 +83,43 @@
       .toggle-icon-expanded {
         transform: rotate(90deg);
       }
+
+      /* Edit mode styles */
+      .edit-textarea {
+        font-family: monospace;
+        background-color: #1f2937;
+        border: 2px solid #6366f1;
+        border-radius: 0.5rem;
+        padding: 1rem;
+        color: #e5e7eb;
+        resize: vertical;
+        min-height: 200px;
+        width: 100%;
+      }
+
+      .edit-textarea:focus {
+        outline: none;
+        border-color: #8b5cf6;
+        box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.3);
+      }
+
+      .edit-btn {
+        transition: all 0.2s;
+      }
+
+      .edit-btn:hover {
+        transform: scale(1.05);
+      }
+
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+
+      .saving-spinner {
+        display: inline-block;
+        animation: spin 1s linear infinite;
+      }
     </style>
   </head>
 
@@ -440,16 +477,20 @@
     function createButtons(sheetName, applyFilters = false) {
       const container = document.getElementById('buttonContainer');
       container.innerHTML = '';
-      
-      // Build task list with metadata - CHANGED: Handle array of instances
+
+      // Build task list with metadata - Handle new data structure with metadata
       allTasks = [];
       const taskNames = Object.keys(allSheetsData[sheetName]);
-      
+
       taskNames.forEach(taskName => {
-        // Each task now has an array of instances
+        // Each task now has an array of instances (objects with details and metadata)
         const instances = allSheetsData[sheetName][taskName];
-        
-        instances.forEach((details, index) => {
+
+        instances.forEach((instance, index) => {
+          // Handle both old format (string) and new format (object with details/metadata)
+          const details = typeof instance === 'string' ? instance : instance.details;
+          const metadata = typeof instance === 'object' && instance.metadata ? instance.metadata : null;
+
           const { description, status, priority, assignedTo, deadline } = parseTaskDetails(details);
           allTasks.push({
             name: taskName,
@@ -459,7 +500,8 @@
             priority: priority,
             assignedTo: assignedTo,
             deadline: deadline,
-            details: details
+            details: details,
+            metadata: metadata  // Include metadata for editing
           });
         });
       });
@@ -531,21 +573,21 @@
     function showTaskDetails(taskName) {
       selectedTask = taskName;
       console.log(`Task selected: ${taskName} in project: ${currentSheet}`);
-      
+
       const display = document.getElementById('textDisplay');
-      
+
       // Get filtered tasks
       const filteredTasks = getFilteredTasks();
-      
+
       // Get all instances of this task name (filtered)
       const instances = filteredTasks.filter(t => t.name === taskName);
-      
+
       if (instances.length === 0) {
         return;
       }
-      
+
       let html = '';
-      
+
       // Show instance count if multiple
       const totalInstances = allTasks.filter(t => t.name === taskName).length;
       if (totalInstances > 1) {
@@ -553,28 +595,33 @@
           <span class="font-semibold">${taskName}</span> - Showing ${instances.length} ${instances.length !== totalInstances ? `of ${totalInstances}` : ''} instance${instances.length !== 1 ? 's' : ''}
         </div>`;
       }
-      
+
       // Create collapsible instance for each
       instances.forEach((task, index) => {
         const shortDesc = truncateDescription(task.description, 4);
         const statusBadge = getStatusBadge(task.status);
         const priorityIndicator = getPriorityIndicator(task.priority);
         const deadlineText = task.deadline ? `Due: ${task.deadline}` : '';
-        
+        const hasMetadata = task.metadata !== null;
+        const taskIndex = allTasks.indexOf(task);
+
         // Alternating background colors
         const bgColor = index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750';
         const borderColor = index % 2 === 0 ? 'border-l-blue-500' : 'border-l-purple-500';
-        
+
         // Always expand all instances by default
         const collapsedClass = 'task-instance-expanded';
         const detailsClass = 'task-details-visible';
         const iconClass = 'toggle-icon-expanded';
-        
+
+        // Get source file name for display
+        const sourceFile = hasMetadata ? task.metadata.file_path.split(/[\\\/]/).pop() : '';
+
         html += `
           <div id="instance-${taskName}-${index}" class="task-instance ${collapsedClass} ${bgColor} border-l-4 ${borderColor} rounded-lg mb-3 overflow-hidden">
             <!-- Instance Header (Always Visible) -->
-            <div class="p-4 cursor-pointer hover:bg-gray-700 transition" onclick="toggleTaskInstance('${taskName}-${index}')">
-              <div class="flex items-center gap-3">
+            <div class="p-4 cursor-pointer hover:bg-gray-700 transition flex items-center justify-between" onclick="toggleTaskInstance('${taskName}-${index}')">
+              <div class="flex items-center gap-3 flex-1">
                 <svg id="icon-${taskName}-${index}" class="toggle-icon ${iconClass} w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
                 </svg>
@@ -586,20 +633,52 @@
                   ${deadlineText ? `<span class="text-sm text-orange-400 font-medium">${deadlineText}</span>` : ''}
                 </div>
               </div>
+              ${hasMetadata ? `
+                <button onclick="event.stopPropagation(); startEdit('${taskName}-${index}', ${taskIndex})"
+                        class="edit-btn bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm font-medium ml-2">
+                  Edit
+                </button>
+              ` : ''}
             </div>
-            
+
             <!-- Instance Details (Collapsible) -->
             <div id="details-${taskName}-${index}" class="task-details ${detailsClass} px-4 pb-4 pt-0">
-              <div class="pl-8 border-l-2 border-gray-600 ml-2 space-y-2">
+              <!-- View Mode -->
+              <div id="view-${taskName}-${index}" class="pl-8 border-l-2 border-gray-600 ml-2 space-y-2">
                 <div class="whitespace-pre-line text-gray-300 leading-relaxed">${task.details.replace(/Deadline:\s*(\d{4}-\d{2}-\d{2})\s*\d{2}:\d{2}:\d{2}/g, (m, d) => { const p = d.split('-'); return 'Deadline: ' + p[2] + '/' + p[1] + '/' + p[0].slice(-2); })}</div>
+              </div>
+
+              <!-- Edit Mode (hidden by default) -->
+              <div id="edit-${taskName}-${index}" class="hidden pl-8 border-l-2 border-indigo-500 ml-2 space-y-4">
+                <textarea id="textarea-${taskName}-${index}"
+                          class="edit-textarea"
+                          data-task-index="${taskIndex}">${task.details}</textarea>
+
+                <div class="flex gap-3">
+                  <button onclick="saveEdit('${taskName}-${index}')"
+                          id="save-btn-${taskName}-${index}"
+                          class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium">
+                    Save Changes
+                  </button>
+                  <button onclick="cancelEdit('${taskName}-${index}')"
+                          class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded font-medium">
+                    Cancel
+                  </button>
+                </div>
+
+                <div class="text-xs text-gray-500">
+                  <p>Format: <code class="bg-gray-700 px-1 rounded">ColumnName: value</code></p>
+                  <p>Add new columns by adding new lines in this format.</p>
+                  ${hasMetadata ? `<p class="mt-1">Source: ${sourceFile}</p>` : ''}
+                </div>
               </div>
             </div>
           </div>
         `;
       });
-      
+
       display.innerHTML = html;
-      
+
       // Highlight selected button
       document.querySelectorAll('.task-button').forEach(btn => {
         btn.classList.remove('ring-4', 'ring-white');
@@ -607,6 +686,151 @@
           btn.classList.add('ring-4', 'ring-white');
         }
       });
+    }
+
+    // ===== EDIT FUNCTIONALITY =====
+    // Store original details for cancel functionality
+    let originalDetails = {};
+
+    function startEdit(instanceId, taskIndex) {
+      const viewDiv = document.getElementById(`view-${instanceId}`);
+      const editDiv = document.getElementById(`edit-${instanceId}`);
+      const textarea = document.getElementById(`textarea-${instanceId}`);
+
+      // Store original for cancel
+      originalDetails[instanceId] = textarea.value;
+
+      // Switch to edit mode
+      viewDiv.classList.add('hidden');
+      editDiv.classList.remove('hidden');
+
+      // Focus textarea
+      textarea.focus();
+    }
+
+    function cancelEdit(instanceId) {
+      const viewDiv = document.getElementById(`view-${instanceId}`);
+      const editDiv = document.getElementById(`edit-${instanceId}`);
+      const textarea = document.getElementById(`textarea-${instanceId}`);
+
+      // Restore original value
+      if (originalDetails[instanceId]) {
+        textarea.value = originalDetails[instanceId];
+      }
+
+      // Switch back to view mode
+      editDiv.classList.add('hidden');
+      viewDiv.classList.remove('hidden');
+    }
+
+    async function saveEdit(instanceId) {
+      const textarea = document.getElementById(`textarea-${instanceId}`);
+      const saveBtn = document.getElementById(`save-btn-${instanceId}`);
+      const taskIndex = parseInt(textarea.dataset.taskIndex);
+      const task = allTasks[taskIndex];
+
+      if (!task || !task.metadata) {
+        showEditNotification('Error: Cannot save - missing metadata', 'error');
+        return;
+      }
+
+      // Parse the textarea content into key-value pairs
+      const newDetails = textarea.value;
+      const updates = {};
+      const newColumns = {};
+      const existingColumns = task.metadata.columns;
+
+      // Track which columns have values in the new content
+      const newColumnValues = {};
+
+      newDetails.split('\n').forEach(line => {
+        const colonIndex = line.indexOf(':');
+        if (colonIndex > 0) {
+          const key = line.substring(0, colonIndex).trim();
+          const value = line.substring(colonIndex + 1).trim();
+
+          newColumnValues[key] = value;
+
+          if (existingColumns.includes(key)) {
+            updates[key] = value;
+          } else {
+            newColumns[key] = value;
+          }
+        }
+      });
+
+      // Also detect removed values (columns that had values but now don't)
+      existingColumns.forEach(col => {
+        if (col !== existingColumns[0]) {  // Skip task name column
+          const oldValue = task.metadata.raw_values[col];
+          const hasNewValue = newColumnValues.hasOwnProperty(col);
+
+          if (oldValue && !hasNewValue) {
+            updates[col] = '';  // Clear the cell
+          }
+        }
+      });
+
+      // Show saving state
+      saveBtn.disabled = true;
+      const originalBtnText = saveBtn.innerHTML;
+      saveBtn.innerHTML = '<span class="saving-spinner">↻</span> Saving...';
+
+      try {
+        const response = await fetch('/api/save-task', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            file_path: task.metadata.file_path,
+            sheet_name: task.metadata.sheet_name,
+            row_index: task.metadata.row_index,
+            task_name: task.metadata.task_name,
+            updates: updates,
+            new_columns: Object.keys(newColumns).length > 0 ? newColumns : null
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+          showEditNotification('Changes saved successfully!', 'success');
+          // Data will be refreshed automatically via SSE
+          cancelEdit(instanceId);  // Exit edit mode
+        } else {
+          throw new Error(result.detail || 'Failed to save');
+        }
+
+      } catch (error) {
+        showEditNotification(`Error: ${error.message}`, 'error');
+      } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalBtnText;
+      }
+    }
+
+    function showEditNotification(message, type = 'success') {
+      let notification = document.getElementById('editNotification');
+      if (!notification) {
+        notification = document.createElement('div');
+        notification.id = 'editNotification';
+        notification.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 text-white';
+        document.body.appendChild(notification);
+      }
+
+      // Remove old color classes and add new one
+      notification.classList.remove('bg-green-600', 'bg-red-600');
+      notification.classList.add(type === 'success' ? 'bg-green-600' : 'bg-red-600');
+      notification.innerHTML = message;
+
+      // Show notification
+      notification.classList.remove('translate-y-20', 'opacity-0');
+
+      // Hide after 3 seconds
+      setTimeout(() => {
+        notification.classList.add('translate-y-20', 'opacity-0');
+      }, 3000);
     }
 
     // Switch between sheets/projects

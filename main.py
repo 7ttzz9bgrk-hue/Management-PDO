@@ -1,6 +1,8 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.templating import Jinja2Templates
 from fastapi.responses import HTMLResponse, StreamingResponse
+from pydantic import BaseModel
+from typing import Dict, Any, Optional
 import pandas as pd
 import asyncio
 import os
@@ -31,6 +33,10 @@ cached_data = {
 data_version = 0  # Increments when data changes
 connected_clients = []  # SSE clients waiting for updates
 
+# ===== WRITE LOCK (prevents Watchdog reload during saves) =====
+write_in_progress = False
+write_lock = threading.Lock()
+
 # ===== FILE WATCHER =====
 class ExcelFileHandler(FileSystemEventHandler):
     """Watches for changes to Excel files and triggers data reload."""
@@ -41,6 +47,8 @@ class ExcelFileHandler(FileSystemEventHandler):
         self.debounce_seconds = 2  # Wait 2 seconds before reloading to handle multiple rapid changes
 
     def on_modified(self, event):
+        global write_in_progress
+
         if event.is_directory:
             return
 
@@ -58,6 +66,12 @@ class ExcelFileHandler(FileSystemEventHandler):
         # Only react to files explicitly listed in FILE_PATHS
         if modified_path not in self.file_paths:
             return
+
+        # Skip if we're currently writing to prevent reload loops
+        with write_lock:
+            if write_in_progress:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Ignoring change during write operation")
+                return
 
         current_time = time.time()
         # Debounce: only reload if enough time has passed
@@ -104,15 +118,16 @@ def reload_data():
 def load_all_sheets_data():
     all_data = {}
     valid_sheet_names = []
-    
+
     for file_path in FILE_PATHS:
+        abs_file_path = os.path.abspath(file_path)  # Store absolute path for metadata
         try:
             with pd.ExcelFile(file_path) as excel_file:
                 sheet_names = excel_file.sheet_names
         except Exception as e:
             print(f"Error opening file '{file_path}': {e}")
             continue
-        
+
         for sheet_name in sheet_names:
             # Skip default Excel sheet names like "Sheet1", "Sheet2", etc.
             if re.match(r'^sheet\d+$', sheet_name.lower().strip()):
@@ -125,7 +140,7 @@ def load_all_sheets_data():
                 if df.empty or len(df.columns) < 2:
                     print(f"Warning: Skipping empty sheet '{sheet_name}' in '{file_path}'")
                     continue
-                
+
                 # Rule 1: Stop at the first unnamed/undefined column
                 valid_cols = []
                 for col in df.columns:
@@ -133,13 +148,16 @@ def load_all_sheets_data():
                     if col_str.startswith('Unnamed') or col_str == '' or col_str == 'nan':
                         break
                     valid_cols.append(col)
-                
+
                 if len(valid_cols) < 2:
                     print(f"Warning: Skipping sheet '{sheet_name}' in '{file_path}' - not enough named columns")
                     continue
-                
+
+                # Store all column names for metadata
+                all_columns = [str(col) for col in valid_cols]
+
                 df = df[valid_cols]
-                
+
                 # Rule 2: Stop at the first empty Task Name (first column) row
                 task_name_col = df.columns[0]
                 cut_index = None
@@ -147,51 +165,73 @@ def load_all_sheets_data():
                     if pd.isna(value) or str(value).strip() == '':
                         cut_index = i
                         break
-                
+
                 if cut_index is not None:
                     df = df.iloc[:cut_index]
-                
+
                 if df.empty:
                     print(f"Warning: Skipping sheet '{sheet_name}' in '{file_path}' - no valid data")
                     continue
-                
+
                 # Initialize sheet if it doesn't exist
                 if sheet_name not in all_data:
                     all_data[sheet_name] = {}
                     valid_sheet_names.append(sheet_name)
-                
-                for _, row in df.iterrows():
+
+                # Use enumerate to track row index for metadata
+                for row_idx, (_, row) in enumerate(df.iterrows()):
                     task_name = str(row[task_name_col])
-                    
+
                     if task_name == 'nan' or not task_name.strip():
                         continue
-                    
+
+                    # Build details string and raw values dict
                     details = []
-                    for col in df.columns[1:]:
+                    raw_values = {}
+                    for col in df.columns:
                         value = row[col]
-                        if pd.notna(value) and str(value).strip():
+                        # Store raw value (None if NaN)
+                        raw_values[str(col)] = value if pd.notna(value) else None
+                        # Add to details string (skip task name column and empty values)
+                        if col != task_name_col and pd.notna(value) and str(value).strip():
                             details.append(f"{col}: {value}")
-                    
+
                     formatted_details = '\n'.join(details)
-                    
+
+                    # Create enriched entry with metadata
+                    entry = {
+                        "details": formatted_details,
+                        "metadata": {
+                            "file_path": abs_file_path,
+                            "sheet_name": sheet_name,
+                            "row_index": row_idx,
+                            "columns": all_columns,
+                            "raw_values": raw_values,
+                            "task_name": task_name  # For row validation during save
+                        }
+                    }
+
                     # Merge: append to existing task or create new
                     if task_name not in all_data[sheet_name]:
                         all_data[sheet_name][task_name] = []
-                    all_data[sheet_name][task_name].append(formatted_details)
-                
+                    all_data[sheet_name][task_name].append(entry)
+
                 print(f"Loaded sheet '{sheet_name}' from '{file_path}'")
-            
+
             except Exception as e:
                 print(f"Error loading sheet '{sheet_name}' from '{file_path}': {e}")
                 continue
-    
+
     if not valid_sheet_names:
         print("Warning: No valid sheets found, creating default")
         all_data['Default'] = {
-            'Sample Task': ['No data available\nPlease check your Excel file']
+            'Sample Task': [{
+                "details": "No data available\nPlease check your Excel file",
+                "metadata": None
+            }]
         }
         valid_sheet_names = ['Default']
-    
+
     print(f"Total sheets loaded: {len(valid_sheet_names)}")
     return all_data, valid_sheet_names
 
@@ -248,6 +288,104 @@ async def get_data():
         "version": data_version,
         "last_updated": cached_data["last_updated"]
     }
+
+
+# ===== TASK UPDATE MODEL =====
+class TaskUpdate(BaseModel):
+    file_path: str
+    sheet_name: str
+    row_index: int
+    task_name: str  # For validation that row hasn't shifted
+    updates: Dict[str, Any]  # {column_name: new_value}
+    new_columns: Optional[Dict[str, Any]] = None  # New columns to create
+
+
+@app.post("/api/save-task")
+async def save_task(update: TaskUpdate):
+    """Save task changes back to the Excel file."""
+    global write_in_progress
+
+    try:
+        # Validate file exists and is in allowed paths
+        abs_path = os.path.abspath(update.file_path)
+        allowed_paths = [os.path.abspath(fp) for fp in FILE_PATHS]
+
+        if abs_path not in allowed_paths:
+            raise HTTPException(status_code=403, detail="File not in allowed paths")
+
+        if not os.path.exists(abs_path):
+            raise HTTPException(status_code=404, detail="File not found")
+
+        # Set write lock to prevent watchdog reload
+        with write_lock:
+            write_in_progress = True
+
+        try:
+            # Read entire Excel file (all sheets)
+            excel_data = pd.read_excel(abs_path, sheet_name=None, engine='openpyxl')
+
+            if update.sheet_name not in excel_data:
+                raise HTTPException(status_code=404, detail="Sheet not found")
+
+            df = excel_data[update.sheet_name]
+
+            # Validate row index
+            if update.row_index < 0 or update.row_index >= len(df):
+                raise HTTPException(status_code=400, detail="Invalid row index")
+
+            # Validate task name hasn't shifted
+            task_name_col = df.columns[0]
+            current_task_name = str(df.iloc[update.row_index][task_name_col])
+            if current_task_name != update.task_name:
+                raise HTTPException(
+                    status_code=409,
+                    detail=f"Row position changed. Expected '{update.task_name}' but found '{current_task_name}'. Please refresh and try again."
+                )
+
+            # Apply updates to existing columns
+            for col, value in update.updates.items():
+                if col in df.columns:
+                    # Convert empty string to None for proper Excel handling
+                    df.at[update.row_index, col] = value if value != '' else None
+
+            # Handle new columns
+            if update.new_columns:
+                for col, value in update.new_columns.items():
+                    if col not in df.columns:
+                        # Add new column with None for all rows
+                        df[col] = None
+                    # Set value for this row
+                    df.at[update.row_index, col] = value if value != '' else None
+
+            # Update the sheet in our data structure
+            excel_data[update.sheet_name] = df
+
+            # Write back to Excel file
+            with pd.ExcelWriter(abs_path, engine='openpyxl', mode='w') as writer:
+                for sname, sheet_df in excel_data.items():
+                    sheet_df.to_excel(writer, sheet_name=sname, index=False)
+
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Saved changes to {os.path.basename(abs_path)}, sheet '{update.sheet_name}', row {update.row_index}")
+
+            # Small delay to let file system settle
+            time.sleep(0.5)
+
+        finally:
+            # Release write lock
+            with write_lock:
+                write_in_progress = False
+
+        # Trigger manual reload after write
+        reload_data()
+
+        return {"status": "success", "message": "Task updated successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        with write_lock:
+            write_in_progress = False
+        raise HTTPException(status_code=500, detail=f"Error saving task: {str(e)}")
 
 
 @app.get("/", response_class=HTMLResponse)
