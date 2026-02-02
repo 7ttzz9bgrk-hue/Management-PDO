@@ -5,7 +5,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Tailwind via CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://urldefense.com/v3/__https://cdn.tailwindcss.com__;!!O42koZAH9g!ZNT_3WdpX-x-xZdZCX6Hcze8UtiL0ppeyRyfMmQDqS5yJyfUgtZeRBoKxxtRYaDROwIMbRCkrcJ4g63w-MacEjXO9PdXLBIyMfe5wfkukg$ "></script>
     <style>
       @keyframes pulse-subtle {
         0%, 100% { opacity: 0.8; transform: scale(1); }
@@ -168,7 +168,7 @@
               
               <!-- Hide Completed Checkbox -->
               <div class="flex items-center bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 hover:bg-gray-650 transition">
-                <input type="checkbox" id="hideCompleted" 
+                <input type="checkbox" id="hideCompleted" checked
                        class="w-4 h-4 bg-gray-600 border-gray-500 rounded focus:ring-purple-500 focus:ring-2 cursor-pointer">
                 <label for="hideCompleted" class="ml-2 text-white font-medium cursor-pointer select-none">Hide Completed</label>
               </div>
@@ -561,7 +561,7 @@
         const bgColor = index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750';
         const borderColor = index % 2 === 0 ? 'border-l-blue-500' : 'border-l-purple-500';
         
-        // All instances collapsed
+        // Only expand if single instance
         const isExpanded = instances.length === 1;
         const collapsedClass = isExpanded ? 'task-instance-expanded' : 'task-instance-collapsed';
         const detailsClass = isExpanded ? 'task-details-visible' : 'task-details-hidden';
@@ -617,7 +617,7 @@
       document.getElementById('searchBox').value = '';
       document.getElementById('statusFilter').value = 'All';
       document.getElementById('priorityFilter').value = 'All';
-      document.getElementById('hideCompleted').checked = false;
+      document.getElementById('hideCompleted').checked = true;
       
       createButtons(sheetName, false);
       updateActiveFilterBadge();
