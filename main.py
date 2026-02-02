@@ -15,6 +15,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
 import time
+from openpyxl import load_workbook
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
@@ -405,11 +406,37 @@ async def save_task(update: TaskUpdate):
             # Update the sheet in our data structure
             excel_data[update.sheet_name] = df
 
+            # Read original column widths before overwriting (using temp copy to handle open files)
+            original_col_widths = {}
+            try:
+                _, ext = os.path.splitext(abs_path)
+                temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
+                os.close(temp_fd)
+                shutil.copy2(abs_path, temp_path)
+                temp_wb = load_workbook(temp_path)
+                for sheet_name in temp_wb.sheetnames:
+                    original_col_widths[sheet_name] = {}
+                    ws = temp_wb[sheet_name]
+                    for col_letter, dim in ws.column_dimensions.items():
+                        if dim.width:
+                            original_col_widths[sheet_name][col_letter] = dim.width
+                temp_wb.close()
+                os.unlink(temp_path)
+            except Exception:
+                pass  # If we can't read widths, continue without them
+
             # Write back to Excel file
             try:
                 with pd.ExcelWriter(abs_path, engine='openpyxl', mode='w') as writer:
                     for sname, sheet_df in excel_data.items():
                         sheet_df.to_excel(writer, sheet_name=sname, index=False)
+
+                    # Restore original column widths
+                    for sname in writer.sheets:
+                        ws = writer.sheets[sname]
+                        if sname in original_col_widths:
+                            for col_letter, width in original_col_widths[sname].items():
+                                ws.column_dimensions[col_letter].width = width
             except PermissionError:
                 raise HTTPException(
                     status_code=423,
