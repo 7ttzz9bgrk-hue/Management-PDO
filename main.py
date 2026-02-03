@@ -443,20 +443,31 @@ async def save_task(update: TaskUpdate):
             # Update the sheet in our data structure
             excel_data[update.sheet_name] = df
 
-            # Read original column widths before overwriting (using shared access to handle open files)
+            # Read original formatting before overwriting (using shared access to handle open files)
             original_col_widths = {}
+            original_col_formats = {}  # Store number formats per column
             try:
                 file_bytes = read_file_with_shared_access(abs_path)
                 temp_wb = load_workbook(io.BytesIO(file_bytes))
                 for sheet_name in temp_wb.sheetnames:
                     original_col_widths[sheet_name] = {}
+                    original_col_formats[sheet_name] = {}
                     ws = temp_wb[sheet_name]
+                    # Get column widths
                     for col_letter, dim in ws.column_dimensions.items():
                         if dim.width:
                             original_col_widths[sheet_name][col_letter] = dim.width
+                    # Get number formats from the first data row (row 2, after header)
+                    if ws.max_row >= 2:
+                        for col_idx in range(1, ws.max_column + 1):
+                            cell = ws.cell(row=2, column=col_idx)
+                            if cell.number_format and cell.number_format != 'General':
+                                from openpyxl.utils import get_column_letter
+                                col_letter = get_column_letter(col_idx)
+                                original_col_formats[sheet_name][col_letter] = cell.number_format
                 temp_wb.close()
             except Exception:
-                pass  # If we can't read widths, continue without them
+                pass  # If we can't read formatting, continue without it
 
             # Write back to Excel file
             try:
@@ -464,12 +475,21 @@ async def save_task(update: TaskUpdate):
                     for sname, sheet_df in excel_data.items():
                         sheet_df.to_excel(writer, sheet_name=sname, index=False)
 
-                    # Restore original column widths
+                    # Restore original column widths and formats
                     for sname in writer.sheets:
                         ws = writer.sheets[sname]
+                        # Restore column widths
                         if sname in original_col_widths:
                             for col_letter, width in original_col_widths[sname].items():
                                 ws.column_dimensions[col_letter].width = width
+                        # Restore number formats for all data rows
+                        if sname in original_col_formats:
+                            for col_letter, num_format in original_col_formats[sname].items():
+                                from openpyxl.utils import column_index_from_string
+                                col_idx = column_index_from_string(col_letter)
+                                # Apply format to all data rows (skip header row 1)
+                                for row_idx in range(2, ws.max_row + 1):
+                                    ws.cell(row=row_idx, column=col_idx).number_format = num_format
             except PermissionError:
                 raise HTTPException(
                     status_code=423,
