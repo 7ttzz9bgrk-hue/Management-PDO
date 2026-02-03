@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import tempfile
+import io
 from datetime import datetime
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
@@ -120,46 +121,77 @@ def reload_data():
     # Notify all connected SSE clients
     notify_clients()
 
+def read_file_with_shared_access(file_path: str) -> bytes:
+    """
+    Read a file even if it's open in another program (like Excel).
+    Uses shared read access on Windows.
+    """
+    import sys
+    if sys.platform == 'win32':
+        # Windows: use win32 API for shared read access
+        import msvcrt
+        import ctypes
+        from ctypes import wintypes
+
+        GENERIC_READ = 0x80000000
+        FILE_SHARE_READ = 0x1
+        FILE_SHARE_WRITE = 0x2
+        FILE_SHARE_DELETE = 0x4
+        OPEN_EXISTING = 3
+        FILE_ATTRIBUTE_NORMAL = 0x80
+
+        CreateFileW = ctypes.windll.kernel32.CreateFileW
+        CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                                wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+        CreateFileW.restype = wintypes.HANDLE
+
+        ReadFile = ctypes.windll.kernel32.ReadFile
+        GetFileSize = ctypes.windll.kernel32.GetFileSize
+        CloseHandle = ctypes.windll.kernel32.CloseHandle
+
+        handle = CreateFileW(
+            file_path,
+            GENERIC_READ,
+            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+            None,
+            OPEN_EXISTING,
+            FILE_ATTRIBUTE_NORMAL,
+            None
+        )
+
+        if handle == -1:
+            raise IOError(f"Cannot open file: {file_path}")
+
+        try:
+            file_size = GetFileSize(handle, None)
+            buffer = ctypes.create_string_buffer(file_size)
+            bytes_read = wintypes.DWORD()
+            ReadFile(handle, buffer, file_size, ctypes.byref(bytes_read), None)
+            return buffer.raw[:bytes_read.value]
+        finally:
+            CloseHandle(handle)
+    else:
+        # Unix/Mac: regular read usually works
+        with open(file_path, 'rb') as f:
+            return f.read()
+
+
 def safe_read_excel(file_path: str, **kwargs):
     """
     Safely read an Excel file that might be open in Excel.
-    Copies to a temp file first to avoid file lock issues.
+    Reads file content with shared access, then loads from memory.
     """
-    # Create a temp file with the same extension
-    _, ext = os.path.splitext(file_path)
-    temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
-    os.close(temp_fd)
-
-    try:
-        # Copy the file to temp location (works even if Excel has it open)
-        shutil.copy2(file_path, temp_path)
-        # Read from the temp copy
-        return pd.read_excel(temp_path, **kwargs)
-    finally:
-        # Clean up temp file
-        try:
-            os.unlink(temp_path)
-        except Exception:
-            pass
+    file_bytes = read_file_with_shared_access(file_path)
+    return pd.read_excel(io.BytesIO(file_bytes), **kwargs)
 
 
 def safe_get_sheet_names(file_path: str) -> list:
     """
     Safely get sheet names from an Excel file that might be open in Excel.
     """
-    _, ext = os.path.splitext(file_path)
-    temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
-    os.close(temp_fd)
-
-    try:
-        shutil.copy2(file_path, temp_path)
-        with pd.ExcelFile(temp_path) as excel_file:
-            return excel_file.sheet_names
-    finally:
-        try:
-            os.unlink(temp_path)
-        except Exception:
-            pass
+    file_bytes = read_file_with_shared_access(file_path)
+    with pd.ExcelFile(io.BytesIO(file_bytes)) as excel_file:
+        return excel_file.sheet_names
 
 
 def load_all_sheets_data():
@@ -411,14 +443,11 @@ async def save_task(update: TaskUpdate):
             # Update the sheet in our data structure
             excel_data[update.sheet_name] = df
 
-            # Read original column widths before overwriting (using temp copy to handle open files)
+            # Read original column widths before overwriting (using shared access to handle open files)
             original_col_widths = {}
             try:
-                _, ext = os.path.splitext(abs_path)
-                temp_fd, temp_path = tempfile.mkstemp(suffix=ext)
-                os.close(temp_fd)
-                shutil.copy2(abs_path, temp_path)
-                temp_wb = load_workbook(temp_path)
+                file_bytes = read_file_with_shared_access(abs_path)
+                temp_wb = load_workbook(io.BytesIO(file_bytes))
                 for sheet_name in temp_wb.sheetnames:
                     original_col_widths[sheet_name] = {}
                     ws = temp_wb[sheet_name]
@@ -426,7 +455,6 @@ async def save_task(update: TaskUpdate):
                         if dim.width:
                             original_col_widths[sheet_name][col_letter] = dim.width
                 temp_wb.close()
-                os.unlink(temp_path)
             except Exception:
                 pass  # If we can't read widths, continue without them
 
