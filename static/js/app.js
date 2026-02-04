@@ -611,6 +611,9 @@ async function fetchLatestData() {
 
       showUpdateNotification();
       console.log(`Data refreshed to version ${currentDataVersion}`);
+
+      // Update due soon badge
+      updateDueSoonBadgeOnLoad();
     }
   } catch (err) {
     console.error('Failed to fetch latest data:', err);
@@ -659,6 +662,518 @@ function showUpdateNotification() {
     notification.classList.add('translate-y-20', 'opacity-0');
   }, 2000);
 }
+
+// ===== DUE SOON POPUP FUNCTIONALITY =====
+let dueSoonOriginalDetails = {};
+
+function openDueSoonPopup() {
+  const modal = document.getElementById('dueSoonModal');
+  modal.classList.remove('hidden');
+  document.body.style.overflow = 'hidden';
+  filterDueSoonTasks();
+}
+
+function closeDueSoonPopup() {
+  const modal = document.getElementById('dueSoonModal');
+  modal.classList.add('hidden');
+  document.body.style.overflow = '';
+}
+
+// Close modal on Escape key
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    closeDueSoonPopup();
+  }
+});
+
+function getAllTasksAcrossProjects() {
+  const allProjectTasks = [];
+
+  Object.keys(allSheetsData).forEach(sheetName => {
+    const taskNames = Object.keys(allSheetsData[sheetName] || {});
+
+    taskNames.forEach(taskName => {
+      const instances = allSheetsData[sheetName][taskName];
+
+      instances.forEach((instance, index) => {
+        const details = typeof instance === 'string' ? instance : instance.details;
+        const metadata = typeof instance === 'object' && instance.metadata ? instance.metadata : null;
+
+        const { description, status, priority, assignedTo, deadline } = parseTaskDetails(details);
+
+        allProjectTasks.push({
+          name: taskName,
+          project: sheetName,
+          instanceIndex: index,
+          description: description,
+          status: status,
+          priority: priority,
+          assignedTo: assignedTo,
+          deadline: deadline,
+          deadlineDate: parseDeadlineToDate(deadline),
+          details: details,
+          metadata: metadata
+        });
+      });
+    });
+  });
+
+  return allProjectTasks;
+}
+
+function parseDeadlineToDate(deadline) {
+  if (!deadline) return null;
+
+  // Try parsing DD/MM/YY format
+  const ddmmyy = deadline.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+  if (ddmmyy) {
+    let year = parseInt(ddmmyy[3]);
+    if (year < 100) year += 2000;
+    return new Date(year, parseInt(ddmmyy[2]) - 1, parseInt(ddmmyy[1]));
+  }
+
+  // Try parsing YYYY-MM-DD format
+  const yyyymmdd = deadline.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (yyyymmdd) {
+    return new Date(parseInt(yyyymmdd[1]), parseInt(yyyymmdd[2]) - 1, parseInt(yyyymmdd[3]));
+  }
+
+  // Try general Date parsing
+  const parsed = new Date(deadline);
+  return isNaN(parsed) ? null : parsed;
+}
+
+function getDaysUntilDeadline(deadlineDate) {
+  if (!deadlineDate) return Infinity;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const deadline = new Date(deadlineDate);
+  deadline.setHours(0, 0, 0, 0);
+  return Math.ceil((deadline - today) / (1000 * 60 * 60 * 24));
+}
+
+function getDeadlineClass(daysUntil) {
+  if (daysUntil < 0) return 'deadline-overdue';
+  if (daysUntil === 0) return 'deadline-today';
+  if (daysUntil <= 3) return 'deadline-soon';
+  return 'deadline-later';
+}
+
+function getDeadlineText(daysUntil, deadline) {
+  if (daysUntil === Infinity) return '';
+  if (daysUntil < 0) return `Overdue (${deadline})`;
+  if (daysUntil === 0) return 'Due Today';
+  if (daysUntil === 1) return 'Due Tomorrow';
+  return `Due in ${daysUntil} days`;
+}
+
+function filterDueSoonTasks() {
+  const daysFilter = document.getElementById('dueSoonDaysFilter').value;
+  const groupBy = document.getElementById('dueSoonGroupBy').value;
+  const hideCompleted = document.getElementById('dueSoonHideCompleted').checked;
+
+  let tasks = getAllTasksAcrossProjects();
+
+  // Filter by completion status
+  if (hideCompleted) {
+    tasks = tasks.filter(t => t.status !== 'Completed');
+  }
+
+  // Filter by days
+  if (daysFilter !== 'all') {
+    const days = parseInt(daysFilter);
+    tasks = tasks.filter(t => {
+      const daysUntil = getDaysUntilDeadline(t.deadlineDate);
+      return daysUntil <= days;
+    });
+  }
+
+  // Sort by deadline (soonest first), then by priority
+  const priorityOrder = { 'High': 0, 'Medium': 1, 'Low': 2, '': 3 };
+  tasks.sort((a, b) => {
+    const daysA = getDaysUntilDeadline(a.deadlineDate);
+    const daysB = getDaysUntilDeadline(b.deadlineDate);
+    if (daysA !== daysB) return daysA - daysB;
+    return (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
+  });
+
+  // Update counter
+  document.getElementById('dueSoonCounter').textContent = `${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
+
+  // Update badge on sidebar button
+  updateDueSoonBadge(tasks.length);
+
+  // Group and render tasks
+  renderDueSoonTasks(tasks, groupBy);
+}
+
+function updateDueSoonBadge(count) {
+  const badge = document.getElementById('dueSoonBadge');
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function groupTasks(tasks, groupBy) {
+  const groups = {};
+
+  tasks.forEach(task => {
+    let key;
+    switch (groupBy) {
+      case 'priority':
+        key = task.priority || 'No Priority';
+        break;
+      case 'status':
+        key = task.status || 'No Status';
+        break;
+      case 'project':
+        key = task.project;
+        break;
+      case 'deadline':
+        const daysUntil = getDaysUntilDeadline(task.deadlineDate);
+        if (daysUntil < 0) key = 'Overdue';
+        else if (daysUntil === 0) key = 'Due Today';
+        else if (daysUntil <= 3) key = 'Due in 1-3 Days';
+        else if (daysUntil <= 7) key = 'Due in 4-7 Days';
+        else key = 'Due Later';
+        break;
+      default:
+        key = 'All Tasks';
+    }
+
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(task);
+  });
+
+  return groups;
+}
+
+function getGroupOrder(groupBy) {
+  switch (groupBy) {
+    case 'priority':
+      return ['High', 'Medium', 'Low', 'No Priority'];
+    case 'status':
+      return ['Blocked', 'In Progress', 'Not Started', 'Completed', 'No Status'];
+    case 'deadline':
+      return ['Overdue', 'Due Today', 'Due in 1-3 Days', 'Due in 4-7 Days', 'Due Later'];
+    default:
+      return null;
+  }
+}
+
+function getGroupIndicator(groupBy, key) {
+  switch (groupBy) {
+    case 'priority':
+      if (key === 'High') return '<div class="priority-high-indicator"></div>';
+      if (key === 'Medium') return '<div class="priority-medium-indicator"></div>';
+      if (key === 'Low') return '<div class="priority-low-indicator"></div>';
+      return '';
+    case 'status':
+      if (key === 'Not Started') return '<div class="status-not-started-indicator"></div>';
+      if (key === 'In Progress') return '<div class="status-in-progress-indicator"></div>';
+      if (key === 'Completed') return '<div class="status-completed-indicator"></div>';
+      if (key === 'Blocked') return '<div class="status-blocked-indicator"></div>';
+      return '';
+    default:
+      return '';
+  }
+}
+
+function renderDueSoonTasks(tasks, groupBy) {
+  const container = document.getElementById('dueSoonTaskList');
+
+  if (tasks.length === 0) {
+    container.innerHTML = `
+      <div class="due-soon-empty">
+        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <h3>No tasks due soon</h3>
+        <p>All caught up! No urgent tasks require your attention.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const groups = groupTasks(tasks, groupBy);
+  const groupOrder = getGroupOrder(groupBy);
+
+  let sortedKeys;
+  if (groupOrder) {
+    sortedKeys = groupOrder.filter(k => groups[k]);
+    Object.keys(groups).forEach(k => {
+      if (!sortedKeys.includes(k)) sortedKeys.push(k);
+    });
+  } else {
+    sortedKeys = Object.keys(groups).sort();
+  }
+
+  let html = '';
+
+  sortedKeys.forEach(groupKey => {
+    const groupTasks = groups[groupKey];
+    const indicator = getGroupIndicator(groupBy, groupKey);
+
+    html += `
+      <div class="due-soon-group">
+        <div class="due-soon-group-header">
+          ${indicator}
+          <h3>${groupKey}</h3>
+          <span class="due-soon-group-badge">${groupTasks.length}</span>
+        </div>
+        <div class="due-soon-group-tasks">
+    `;
+
+    groupTasks.forEach((task, idx) => {
+      const taskId = `duesoon-${task.project}-${task.name}-${task.instanceIndex}`.replace(/[^a-zA-Z0-9-]/g, '_');
+      const daysUntil = getDaysUntilDeadline(task.deadlineDate);
+      const deadlineClass = getDeadlineClass(daysUntil);
+      const deadlineText = getDeadlineText(daysUntil, task.deadline);
+      const statusBadge = getStatusBadge(task.status);
+      const priorityIndicator = getPriorityIndicator(task.priority);
+      const hasMetadata = task.metadata !== null;
+
+      html += `
+        <div class="due-soon-task" id="task-${taskId}">
+          <div class="due-soon-task-header" onclick="toggleDueSoonTask('${taskId}')">
+            <svg class="due-soon-toggle-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+            </svg>
+            <div class="due-soon-task-name">
+              <span title="${task.name}">${task.name}</span>
+              <div class="due-soon-task-project">Project: ${task.project}</div>
+            </div>
+            <div class="due-soon-task-meta">
+              ${statusBadge}
+              ${priorityIndicator}
+              ${deadlineText ? `<span class="due-soon-deadline ${deadlineClass}">${deadlineText}</span>` : ''}
+            </div>
+          </div>
+          <div class="due-soon-task-details">
+            <div class="due-soon-task-details-content">
+              <!-- View Mode -->
+              <div id="view-${taskId}">
+                <pre>${task.details.replace(/Deadline:\s*(\d{4}-\d{2}-\d{2})\s*\d{2}:\d{2}:\d{2}/g, (m, d) => { const p = d.split('-'); return 'Deadline: ' + p[2] + '/' + p[1] + '/' + p[0].slice(-2); })}</pre>
+                ${hasMetadata ? `
+                  <div class="mt-3 flex gap-2">
+                    <button onclick="event.stopPropagation(); startDueSoonEdit('${taskId}', '${task.project}', '${task.name}', ${task.instanceIndex})"
+                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-medium transition">
+                      Edit Task
+                    </button>
+                    <button onclick="event.stopPropagation(); goToTask('${task.project}', '${task.name}')"
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-sm font-medium transition">
+                      Go to Project
+                    </button>
+                  </div>
+                ` : `
+                  <div class="mt-3">
+                    <button onclick="event.stopPropagation(); goToTask('${task.project}', '${task.name}')"
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-sm font-medium transition">
+                      Go to Project
+                    </button>
+                  </div>
+                `}
+              </div>
+              <!-- Edit Mode -->
+              <div id="edit-${taskId}" class="hidden">
+                <div class="due-soon-edit-area">
+                  <textarea id="textarea-${taskId}" class="due-soon-edit-textarea"
+                            data-project="${task.project}"
+                            data-task-name="${task.name}"
+                            data-instance-index="${task.instanceIndex}">${task.details}</textarea>
+                  <div class="due-soon-edit-buttons">
+                    <button onclick="saveDueSoonEdit('${taskId}')"
+                            id="save-btn-${taskId}"
+                            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium text-sm">
+                      Save Changes
+                    </button>
+                    <button onclick="cancelDueSoonEdit('${taskId}')"
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded font-medium text-sm">
+                      Cancel
+                    </button>
+                  </div>
+                  <p class="text-xs text-gray-500 mt-2">Format: <code class="bg-gray-700 px-1 rounded">ColumnName: value</code></p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    html += `
+        </div>
+      </div>
+    `;
+  });
+
+  container.innerHTML = html;
+}
+
+function toggleDueSoonTask(taskId) {
+  const task = document.getElementById(`task-${taskId}`);
+  if (task) {
+    task.classList.toggle('expanded');
+  }
+}
+
+function goToTask(project, taskName) {
+  closeDueSoonPopup();
+  switchSheet(project);
+  setTimeout(() => {
+    showTaskDetails(taskName);
+    // Scroll the task button into view
+    const buttons = document.querySelectorAll('.task-button');
+    buttons.forEach(btn => {
+      if (btn.textContent === taskName) {
+        btn.scrollIntoView({ behavior: 'smooth', inline: 'center' });
+      }
+    });
+  }, 100);
+}
+
+function startDueSoonEdit(taskId, project, taskName, instanceIndex) {
+  const viewDiv = document.getElementById(`view-${taskId}`);
+  const editDiv = document.getElementById(`edit-${taskId}`);
+  const textarea = document.getElementById(`textarea-${taskId}`);
+
+  dueSoonOriginalDetails[taskId] = textarea.value;
+
+  viewDiv.classList.add('hidden');
+  editDiv.classList.remove('hidden');
+  textarea.focus();
+}
+
+function cancelDueSoonEdit(taskId) {
+  const viewDiv = document.getElementById(`view-${taskId}`);
+  const editDiv = document.getElementById(`edit-${taskId}`);
+  const textarea = document.getElementById(`textarea-${taskId}`);
+
+  if (dueSoonOriginalDetails[taskId]) {
+    textarea.value = dueSoonOriginalDetails[taskId];
+  }
+
+  editDiv.classList.add('hidden');
+  viewDiv.classList.remove('hidden');
+}
+
+async function saveDueSoonEdit(taskId) {
+  const textarea = document.getElementById(`textarea-${taskId}`);
+  const saveBtn = document.getElementById(`save-btn-${taskId}`);
+  const project = textarea.dataset.project;
+  const taskName = textarea.dataset.taskName;
+  const instanceIndex = parseInt(textarea.dataset.instanceIndex);
+
+  // Find the task in allSheetsData
+  const instances = allSheetsData[project]?.[taskName];
+  if (!instances || !instances[instanceIndex]) {
+    showEditNotification('Error: Task not found', 'error');
+    return;
+  }
+
+  const instance = instances[instanceIndex];
+  const metadata = typeof instance === 'object' && instance.metadata ? instance.metadata : null;
+
+  if (!metadata) {
+    showEditNotification('Error: Cannot save - missing metadata', 'error');
+    return;
+  }
+
+  const newDetails = textarea.value;
+  const updates = {};
+  const newColumns = {};
+  const existingColumns = metadata.columns;
+  const newColumnValues = {};
+
+  newDetails.split('\n').forEach(line => {
+    const colonIndex = line.indexOf(':');
+    if (colonIndex > 0) {
+      const key = line.substring(0, colonIndex).trim();
+      const value = line.substring(colonIndex + 1).trim();
+
+      newColumnValues[key] = value;
+
+      if (existingColumns.includes(key)) {
+        updates[key] = value;
+      } else {
+        newColumns[key] = value;
+      }
+    }
+  });
+
+  existingColumns.forEach(col => {
+    if (col !== existingColumns[0]) {
+      const oldValue = metadata.raw_values[col];
+      const hasNewValue = newColumnValues.hasOwnProperty(col);
+
+      if (oldValue && !hasNewValue) {
+        updates[col] = '';
+      }
+    }
+  });
+
+  saveBtn.disabled = true;
+  const originalBtnText = saveBtn.innerHTML;
+  saveBtn.innerHTML = '<span class="saving-spinner">↻</span> Saving...';
+
+  try {
+    const response = await fetch('/api/save-task', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        file_path: metadata.file_path,
+        sheet_name: metadata.sheet_name,
+        row_index: metadata.row_index,
+        task_name: metadata.task_name,
+        updates: updates,
+        new_columns: Object.keys(newColumns).length > 0 ? newColumns : null
+      })
+    });
+
+    const result = await response.json();
+
+    if (response.ok) {
+      showEditNotification('Changes saved successfully!', 'success');
+      cancelDueSoonEdit(taskId);
+      // Refresh the popup after a brief delay
+      setTimeout(() => filterDueSoonTasks(), 500);
+    } else {
+      throw new Error(result.detail || 'Failed to save');
+    }
+
+  } catch (error) {
+    showEditNotification(`Error: ${error.message}`, 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.innerHTML = originalBtnText;
+  }
+}
+
+function updateDueSoonBadgeOnLoad() {
+  // Count tasks due within 7 days (default filter) excluding completed
+  let tasks = getAllTasksAcrossProjects();
+  tasks = tasks.filter(t => t.status !== 'Completed');
+  tasks = tasks.filter(t => {
+    const daysUntil = getDaysUntilDeadline(t.deadlineDate);
+    return daysUntil <= 7;
+  });
+  updateDueSoonBadge(tasks.length);
+}
+
+// Make popup functions globally available
+window.openDueSoonPopup = openDueSoonPopup;
+window.closeDueSoonPopup = closeDueSoonPopup;
+window.filterDueSoonTasks = filterDueSoonTasks;
+window.toggleDueSoonTask = toggleDueSoonTask;
+window.goToTask = goToTask;
+window.startDueSoonEdit = startDueSoonEdit;
+window.cancelDueSoonEdit = cancelDueSoonEdit;
+window.saveDueSoonEdit = saveDueSoonEdit;
 
 // ===== INITIALIZATION =====
 function init() {
@@ -720,6 +1235,9 @@ function init() {
 
   // Initialize view
   switchSheet(currentSheet);
+
+  // Initialize due soon badge count
+  updateDueSoonBadgeOnLoad();
 
   // Start SSE connection
   connectSSE();

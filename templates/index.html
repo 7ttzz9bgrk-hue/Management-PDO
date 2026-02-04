@@ -18,6 +18,17 @@
     <!-- Side Panel -->
     <div class="w-64 bg-gray-800 h-screen sticky top-0 p-6 border-r border-gray-700 flex flex-col">
       <h2 class="text-xl font-bold text-white mb-6">Projects</h2>
+
+      <!-- Due Soon Tasks Button -->
+      <button onclick="openDueSoonPopup()"
+              class="mb-4 w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white font-bold py-3 px-4 rounded-lg transition duration-300 shadow-lg flex items-center justify-center gap-2">
+        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+        </svg>
+        <span>Due Soon</span>
+        <span id="dueSoonBadge" class="bg-white text-red-600 text-xs font-bold px-2 py-0.5 rounded-full hidden">0</span>
+      </button>
+
       <div id="sheetButtons" class="flex flex-col gap-3 overflow-y-auto flex-1">
         {% for sheet_name in sheet_names %}
         <button onclick="switchSheet('{{ sheet_name }}')"
@@ -164,6 +175,75 @@
 
   <!-- Main application script -->
   <script src="/static/js/app.js"></script>
+
+  <!-- Due Soon Tasks Modal -->
+  <div id="dueSoonModal" class="due-soon-modal hidden">
+    <div class="due-soon-overlay" onclick="closeDueSoonPopup()"></div>
+    <div class="due-soon-content">
+      <!-- Modal Header -->
+      <div class="due-soon-header">
+        <div class="flex items-center gap-3">
+          <div class="p-2 bg-orange-500/20 rounded-lg">
+            <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+          </div>
+          <div>
+            <h2 class="text-xl font-bold text-white">Tasks Due Soon</h2>
+            <p class="text-sm text-gray-400">High priority tasks requiring attention</p>
+          </div>
+        </div>
+        <button onclick="closeDueSoonPopup()" class="p-2 hover:bg-gray-700 rounded-lg transition">
+          <svg class="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Modal Filters -->
+      <div class="due-soon-filters">
+        <div class="flex flex-wrap gap-3 items-center">
+          <!-- Days Range Filter -->
+          <div class="flex items-center gap-2">
+            <label class="text-gray-400 text-sm">Show tasks due within:</label>
+            <select id="dueSoonDaysFilter" onchange="filterDueSoonTasks()" class="bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-orange-500">
+              <option value="3">3 days</option>
+              <option value="7" selected>7 days</option>
+              <option value="14">14 days</option>
+              <option value="30">30 days</option>
+              <option value="all">All tasks</option>
+            </select>
+          </div>
+
+          <!-- Group By Filter -->
+          <div class="flex items-center gap-2">
+            <label class="text-gray-400 text-sm">Group by:</label>
+            <select id="dueSoonGroupBy" onchange="filterDueSoonTasks()" class="bg-gray-700 text-white border border-gray-600 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:border-orange-500">
+              <option value="priority">Priority</option>
+              <option value="status">Status</option>
+              <option value="project">Project</option>
+              <option value="deadline">Deadline</option>
+            </select>
+          </div>
+
+          <!-- Hide Completed -->
+          <label class="flex items-center gap-2 text-sm text-gray-400 cursor-pointer">
+            <input type="checkbox" id="dueSoonHideCompleted" checked onchange="filterDueSoonTasks()" class="w-4 h-4 rounded bg-gray-700 border-gray-600 focus:ring-orange-500">
+            Hide Completed
+          </label>
+        </div>
+
+        <div class="mt-3 flex items-center justify-between">
+          <span id="dueSoonCounter" class="text-sm text-gray-400">0 tasks</span>
+        </div>
+      </div>
+
+      <!-- Modal Body - Task List -->
+      <div id="dueSoonTaskList" class="due-soon-body">
+        <!-- Tasks will be populated here -->
+      </div>
+    </div>
+  </div>
 </body>
 
 </html>
