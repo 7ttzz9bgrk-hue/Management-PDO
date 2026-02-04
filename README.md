@@ -9,9 +9,11 @@ A simple web app that displays Excel data as a browsable interface with real-tim
 - **Real-time auto-refresh** - Browser updates automatically when Excel files are saved (no manual refresh needed)
 - **Inline editing** - Edit task data directly in the browser and save back to Excel
 - **Add new columns** - Add new fields by typing `NewColumn: value` in the editor
+- **Due Soon popup** - View all tasks with upcoming deadlines in a convenient popup window
 - File watching powered by Watchdog (monitors only `.xlsx` files in `FILE_PATHS`)
 - Server-Sent Events (SSE) for instant browser updates
 - Skips default sheet names (Sheet1, Sheet2, etc.)
+- Preserves Excel formatting including sheet tab colors when saving
 
 ## Editing Data
 
