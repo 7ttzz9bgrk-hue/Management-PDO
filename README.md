@@ -68,7 +68,45 @@ python --version
 ```
 You should see something like `Python 3.12.0`. If you see an error, try restarting your computer and running the command again.
 
-### Step 2: Install Dependencies
+### Step 2: Download This Project
+
+You have two options to download this project:
+
+#### Option A: Download as ZIP (Easiest)
+
+1. On the GitHub page for this project, click the green **"Code"** button
+2. Click **"Download ZIP"**
+3. Extract the ZIP file to a folder on your computer (e.g., `C:\Users\YourName\Documents\ExcelViewer`)
+4. Remember this folder location - you'll need it later
+
+#### Option B: Using Git (Recommended for developers)
+
+Git is a version control tool that lets you download and keep projects up to date.
+
+**Install Git:**
+1. Go to https://git-scm.com/downloads
+2. Download the installer for Windows
+3. Run the installer and follow the prompts (default options are fine)
+4. Restart Command Prompt after installation
+
+**Create a GitHub account (optional but recommended):**
+1. Go to https://github.com/
+2. Click **"Sign up"** and follow the steps to create a free account
+3. This allows you to save your own projects and contribute to others
+
+**Clone (download) the project:**
+1. Open **Command Prompt**
+2. Navigate to where you want to save the project:
+   ```
+   cd C:\Users\YourName\Documents
+   ```
+3. Clone the repository:
+   ```
+   git clone https://github.com/7ttzz9bgrk-hue/Management-PDO.git
+   ```
+4. A new folder called `Management-PDO` will be created with all the project files
+
+### Step 3: Install Dependencies
 
 Dependencies are additional code packages that this app needs to run. Open **Command Prompt** and navigate to the project folder:
 
@@ -83,7 +121,7 @@ pip install -r requirements.txt
 
 You'll see text scrolling as packages are downloaded and installed. Wait until it finishes.
 
-### Step 3: Configure Your Excel Files
+### Step 4: Configure Your Excel Files
 
 Open `main.py` in any text editor (Notepad works fine) and find the `FILE_PATHS` section near the top. Add the paths to your Excel files:
 
@@ -98,7 +136,7 @@ FILE_PATHS = [
 - You can add as many Excel files as you need
 - Network paths like `//server/shared/file.xlsx` are supported
 
-### Step 4: Add Your Excel Files
+### Step 5: Add Your Excel Files
 
 Place your Excel data file(s) in the project directory (the same folder as `main.py`).
 
