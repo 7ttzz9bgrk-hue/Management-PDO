@@ -50,7 +50,7 @@ class ExcelFileHandler(FileSystemEventHandler):
     def __init__(self, file_paths):
         self.file_paths = [os.path.abspath(fp) for fp in file_paths]
         self.last_reload = 0
-        self.debounce_seconds = 2  # Wait 2 seconds before reloading to handle multiple rapid changes
+        self.debounce_seconds = 3  # Wait 3 seconds before reloading to let Excel finish saving
 
     def on_modified(self, event):
         global write_in_progress
@@ -84,6 +84,8 @@ class ExcelFileHandler(FileSystemEventHandler):
         if current_time - self.last_reload > self.debounce_seconds:
             self.last_reload = current_time
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Detected change in: {os.path.basename(modified_path)}")
+            # Wait a moment for Excel to finish writing before reading
+            time.sleep(0.5)
             reload_data()
 
 def start_file_watcher():
@@ -106,20 +108,57 @@ def start_file_watcher():
     observer.start()
     print("File watcher started - will auto-refresh when Excel files change")
 
-def reload_data():
-    """Reload data from Excel files and notify connected clients."""
+def reload_data(max_retries=3, retry_delay=1.0):
+    """Reload data from Excel files and notify connected clients.
+
+    Includes retry logic to handle cases where Excel is still saving
+    and the file might be temporarily incomplete or unavailable.
+    """
     global data_version
 
-    all_sheets_data, sheet_names = load_all_sheets_data()
-    cached_data["all_sheets_data"] = all_sheets_data
-    cached_data["sheet_names"] = sheet_names
-    cached_data["last_updated"] = datetime.now().isoformat()
-    data_version += 1
+    for attempt in range(max_retries):
+        try:
+            all_sheets_data, sheet_names = load_all_sheets_data()
 
-    print(f"[{datetime.now().strftime('%H:%M:%S')}] Data reloaded (version {data_version})")
+            # Validate we got real data (not just defaults due to read failure)
+            has_real_data = False
+            for sheet_name, tasks in all_sheets_data.items():
+                if sheet_name != 'Default':
+                    for task_name, instances in tasks.items():
+                        if task_name != 'Sample Task':
+                            has_real_data = True
+                            break
+                if has_real_data:
+                    break
 
-    # Notify all connected SSE clients
-    notify_clients()
+            # If we only have default data but we had real data before, retry
+            if not has_real_data and cached_data["sheet_names"] and 'Default' not in cached_data["sheet_names"]:
+                if attempt < max_retries - 1:
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Got empty data, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay)
+                    continue
+                else:
+                    print(f"[{datetime.now().strftime('%H:%M:%S')}] Warning: Could not read valid data after {max_retries} attempts, keeping previous data")
+                    return  # Keep existing cached data
+
+            # Data looks valid, update cache
+            cached_data["all_sheets_data"] = all_sheets_data
+            cached_data["sheet_names"] = sheet_names
+            cached_data["last_updated"] = datetime.now().isoformat()
+            data_version += 1
+
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Data reloaded (version {data_version})")
+
+            # Notify all connected SSE clients
+            notify_clients()
+            return
+
+        except Exception as e:
+            if attempt < max_retries - 1:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Error reloading data: {e}, retrying in {retry_delay}s... (attempt {attempt + 1}/{max_retries})")
+                time.sleep(retry_delay)
+            else:
+                print(f"[{datetime.now().strftime('%H:%M:%S')}] Error reloading data after {max_retries} attempts: {e}")
 
 def read_file_with_shared_access(file_path: str) -> bytes:
     """
@@ -200,10 +239,20 @@ def load_all_sheets_data():
 
     for file_path in FILE_PATHS:
         abs_file_path = os.path.abspath(file_path)  # Store absolute path for metadata
-        try:
-            sheet_names = safe_get_sheet_names(file_path)
-        except Exception as e:
-            print(f"Error opening file '{file_path}': {e}")
+
+        # Retry logic for getting sheet names (file might be mid-save)
+        sheet_names = None
+        for attempt in range(3):
+            try:
+                sheet_names = safe_get_sheet_names(file_path)
+                break
+            except Exception as e:
+                if attempt < 2:
+                    time.sleep(0.3)  # Brief wait before retry
+                else:
+                    print(f"Error opening file '{file_path}' after 3 attempts: {e}")
+
+        if sheet_names is None:
             continue
 
         for sheet_name in sheet_names:
@@ -213,9 +262,19 @@ def load_all_sheets_data():
                 continue
 
             try:
-                df = safe_read_excel(file_path, sheet_name=sheet_name)
+                # Retry logic for reading sheet data
+                df = None
+                for read_attempt in range(3):
+                    try:
+                        df = safe_read_excel(file_path, sheet_name=sheet_name)
+                        break
+                    except Exception as read_err:
+                        if read_attempt < 2:
+                            time.sleep(0.3)
+                        else:
+                            raise read_err
 
-                if df.empty or len(df.columns) < 2:
+                if df is None or df.empty or len(df.columns) < 2:
                     print(f"Warning: Skipping empty sheet '{sheet_name}' in '{file_path}'")
                     continue
 
