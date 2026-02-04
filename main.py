@@ -505,13 +505,25 @@ async def save_task(update: TaskUpdate):
             # Read original formatting before overwriting (using shared access to handle open files)
             original_col_widths = {}
             original_col_formats = {}  # Store number formats per column
+            original_tab_colors = {}  # Store sheet tab colors
+            original_book_views = None  # Store workbook view settings (includes tab bar ratio)
             try:
                 file_bytes = read_file_with_shared_access(abs_path)
                 temp_wb = load_workbook(io.BytesIO(file_bytes))
+
+                # Save workbook view settings (includes tab bar width/ratio)
+                if temp_wb.views:
+                    original_book_views = temp_wb.views
+
                 for sheet_name in temp_wb.sheetnames:
                     original_col_widths[sheet_name] = {}
                     original_col_formats[sheet_name] = {}
                     ws = temp_wb[sheet_name]
+
+                    # Get sheet tab color
+                    if ws.sheet_properties.tabColor:
+                        original_tab_colors[sheet_name] = ws.sheet_properties.tabColor
+
                     # Get column widths
                     for col_letter, dim in ws.column_dimensions.items():
                         if dim.width:
@@ -534,9 +546,18 @@ async def save_task(update: TaskUpdate):
                     for sname, sheet_df in excel_data.items():
                         sheet_df.to_excel(writer, sheet_name=sname, index=False)
 
-                    # Restore original column widths and formats
+                    # Restore workbook view settings (tab bar width/ratio)
+                    if original_book_views:
+                        writer.book.views = original_book_views
+
+                    # Restore original column widths, formats, and tab colors
                     for sname in writer.sheets:
                         ws = writer.sheets[sname]
+
+                        # Restore sheet tab color
+                        if sname in original_tab_colors:
+                            ws.sheet_properties.tabColor = original_tab_colors[sname]
+
                         # Restore column widths
                         if sname in original_col_widths:
                             for col_letter, width in original_col_widths[sname].items():
