@@ -37,7 +37,7 @@ Click the **Edit** button on any task to modify its data:
 - **Add more sheets** → Each sheet becomes a separate tab
 - **Add more rows** → Each row becomes a task
 - **Add/rename columns** → Columns are displayed automatically
-- **First column** → Always used as the task name
+- **First column** → Used as the button/card label in the UI
 - **Column names are flexible** → Use any column names you want. The app will display whatever columns you create, giving you full freedom to structure your data however you need.
 
 ### Recommended Columns
