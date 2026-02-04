@@ -51,20 +51,56 @@ These are optional - the app works with any columns you define.
 
 ## Setup
 
-1. Install dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
+### Step 1: Install Python
 
-2. Configure your Excel files in `main.py`:
-   ```python
-   FILE_PATHS = [
-       "mockData.xlsx",
-       "//server/shared/projects.xlsx",
-   ]
-   ```
+Python is a programming language that this app is built with. You need to install it first before running the app.
 
-3. Place your Excel data file(s) in the project directory.
+1. Go to the official Python website: https://www.python.org/downloads/
+2. Click the yellow **"Download Python"** button (download version 3.10 or newer)
+3. Run the downloaded installer
+4. **IMPORTANT:** On the first screen of the installer, check the box that says **"Add Python to PATH"** (this is crucial!)
+5. Click **"Install Now"**
+6. Wait for the installation to complete, then click **"Close"**
+
+To verify Python is installed correctly, open **Command Prompt** (search "cmd" in Windows Start menu) and type:
+```
+python --version
+```
+You should see something like `Python 3.12.0`. If you see an error, try restarting your computer and running the command again.
+
+### Step 2: Install Dependencies
+
+Dependencies are additional code packages that this app needs to run. Open **Command Prompt** and navigate to the project folder:
+
+```
+cd path\to\this\project
+```
+
+Then run this command to install all required packages:
+```
+pip install -r requirements.txt
+```
+
+You'll see text scrolling as packages are downloaded and installed. Wait until it finishes.
+
+### Step 3: Configure Your Excel Files
+
+Open `main.py` in any text editor (Notepad works fine) and find the `FILE_PATHS` section near the top. Add the paths to your Excel files:
+
+```python
+FILE_PATHS = [
+    "mockData.xlsx",
+    "//server/shared/projects.xlsx",
+]
+```
+
+- Use forward slashes `/` or double backslashes `\\` in file paths
+- You can add as many Excel files as you need
+- Network paths like `//server/shared/file.xlsx` are supported
+
+### Step 4: Add Your Excel Files
+
+Place your Excel data file(s) in the project directory (the same folder as `main.py`).
 
 ## Run
 
