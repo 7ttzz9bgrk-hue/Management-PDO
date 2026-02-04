@@ -164,18 +164,6 @@
     </div>
   </div>
 
-  <!-- Configuration from server (Jinja template data) -->
-  <script>
-    window.AppConfig = {
-      allSheetsData: {{ all_sheets_data | tojson }},
-      dataVersion: {{ data_version | default(0) }},
-      initialSheet: "{{ sheet_names[0] }}"
-    };
-  </script>
-
-  <!-- Main application script -->
-  <script src="/static/js/app.js"></script>
-
   <!-- Due Soon Tasks Modal -->
   <div id="dueSoonModal" class="due-soon-modal hidden">
     <div class="due-soon-overlay" onclick="closeDueSoonPopup()"></div>
@@ -244,6 +232,18 @@
       </div>
     </div>
   </div>
+
+  <!-- Configuration from server (Jinja template data) -->
+  <script>
+    window.AppConfig = {
+      allSheetsData: {{ all_sheets_data | tojson }},
+      dataVersion: {{ data_version | default(0) }},
+      initialSheet: "{{ sheet_names[0] }}"
+    };
+  </script>
+
+  <!-- Main application script -->
+  <script src="/static/js/app.js"></script>
 </body>
 
 </html>
