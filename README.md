@@ -10,6 +10,7 @@ A simple web app that displays Excel data as a browsable interface with real-tim
 - **Inline editing** - Edit task data directly in the browser and save back to Excel
 - **Add new columns** - Add new fields by typing `NewColumn: value` in the editor
 - **Due Soon popup** - View all tasks with upcoming deadlines in a convenient popup window
+- **Open/Close Excel** - Floating button to open or close the source Excel file directly from the browser
 - File watching powered by Watchdog (monitors only `.xlsx` files in `FILE_PATHS`)
 - Server-Sent Events (SSE) for instant browser updates
 - Skips default sheet names (Sheet1, Sheet2, etc.)
@@ -171,4 +172,7 @@ project/
 | `/` | GET | Main web interface |
 | `/api/data` | GET | Fetch all sheets data as JSON |
 | `/api/save-task` | POST | Save task changes to Excel |
+| `/api/open-excel` | POST | Open an Excel file with the system default app |
+| `/api/close-excel` | POST | Close a previously opened Excel file |
+| `/api/excel-status` | GET | Get open/close status of tracked Excel files |
 | `/events` | GET | SSE endpoint for real-time updates |
