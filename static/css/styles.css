@@ -478,3 +478,42 @@
 .due-soon-task.expanded .due-soon-toggle-icon {
   transform: rotate(90deg);
 }
+
+/* ===== EXCEL FLOATING BUTTON ===== */
+.excel-float-btn {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  transition: all 0.3s ease-in-out;
+}
+
+.excel-float-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+}
+
+.excel-float-btn:active {
+  transform: translateY(0);
+}
+
+.excel-float-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.excel-btn-closed {
+  background: linear-gradient(135deg, #16a34a, #15803d);
+}
+
+.excel-btn-closed:hover {
+  background: linear-gradient(135deg, #15803d, #166534);
+}
+
+.excel-btn-open {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+}
+
+.excel-btn-open:hover {
+  background: linear-gradient(135deg, #b91c1c, #991b1b);
+}

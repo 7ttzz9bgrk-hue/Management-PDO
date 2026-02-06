@@ -164,6 +164,21 @@
     </div>
   </div>
 
+  <!-- Open Excel Floating Button (Bottom Left) -->
+  <button id="excelToggleBtn"
+          onclick="toggleExcelFile()"
+          class="excel-float-btn fixed bottom-6 left-6 z-50 flex items-center gap-2 px-5 py-3 rounded-full shadow-lg font-semibold text-white transition-all duration-300"
+          title="Open source Excel file">
+    <!-- Excel Icon -->
+    <svg id="excelBtnIcon" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/>
+      <path d="M8 12.5L10.5 17H9l-1.5-3-1.5 3H4.5L7 12.5 4.5 8H6l1.5 3L9 8h1.5L8 12.5z"/>
+    </svg>
+    <span id="excelBtnText">Open Excel</span>
+    <!-- File name label -->
+    <span id="excelBtnFile" class="text-xs opacity-75 hidden"></span>
+  </button>
+
   <!-- Due Soon Tasks Modal -->
   <div id="dueSoonModal" class="due-soon-modal hidden">
     <div class="due-soon-overlay" onclick="closeDueSoonPopup()"></div>
