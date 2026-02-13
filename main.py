@@ -11,7 +11,7 @@ import re
 import shutil
 import tempfile
 import io
-from datetime import datetime
+from datetime import datetime, date
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 import threading
@@ -335,7 +335,7 @@ def load_all_sheets_data():
                         # Store raw value (None if NaN), convert Timestamps to ISO strings
                         if pd.isna(value):
                             raw_values[str(col)] = None
-                        elif isinstance(value, pd.Timestamp):
+                        elif isinstance(value, (pd.Timestamp, datetime, date)):
                             raw_values[str(col)] = value.isoformat()
                         else:
                             raw_values[str(col)] = value
