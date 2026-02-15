@@ -1,8 +1,10 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 
-from app import templates
 import app.state as state
+
+templates = Jinja2Templates(directory="templates")
 
 router = APIRouter()
 

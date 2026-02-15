@@ -1,14 +1,10 @@
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 import threading
 
 from app.routes import register_routes
 from app.services.data_loader import reload_data
 from app.services.file_watcher import start_file_watcher
-
-
-templates = Jinja2Templates(directory="templates")
 
 
 def create_app() -> FastAPI:
