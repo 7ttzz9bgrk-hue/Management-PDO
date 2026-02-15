@@ -483,13 +483,6 @@ select option { background: #1e293b; color: #e2e8f0; }
   background: linear-gradient(135deg, #15803d, #166534);
 }
 
-.excel-btn-open {
-  background: linear-gradient(135deg, #dc2626, #b91c1c);
-}
-
-.excel-btn-open:hover {
-  background: linear-gradient(135deg, #b91c1c, #991b1b);
-}
 
 /* ===== NOTIFICATION TOAST ===== */
 .notification-toast {

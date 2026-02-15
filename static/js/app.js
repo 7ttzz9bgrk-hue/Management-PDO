@@ -7,7 +7,6 @@ let selectedTask = null;
 let allTasks = [];
 let filterBarOpen = false;
 let originalDetails = {};
-let excelOpenFiles = {};
 
 const buttonColors = [
   'bg-blue-500 hover:bg-blue-600',
@@ -1088,14 +1087,8 @@ function getExcelFilesForSheet(sheetName) {
   return [...filePaths];
 }
 
-function isCurrentSheetExcelOpen() {
-  const files = getExcelFilesForSheet(currentSheet);
-  return files.length > 0 && files.every(f => excelOpenFiles[f]);
-}
-
 function updateExcelButton() {
-  const btn = document.getElementById('excelToggleBtn');
-  const btnText = document.getElementById('excelBtnText');
+  const btn = document.getElementById('excelOpenBtn');
   const btnFile = document.getElementById('excelBtnFile');
   const files = getExcelFilesForSheet(currentSheet);
 
@@ -1113,86 +1106,43 @@ function updateExcelButton() {
     btnFile.textContent = fileNames.length === 1 ? fileNames[0] : `${fileNames.length} files`;
     btnFile.classList.remove('hidden');
   }
-
-  const isOpen = isCurrentSheetExcelOpen();
-  if (isOpen) {
-    btn.classList.remove('excel-btn-closed');
-    btn.classList.add('excel-btn-open');
-    btnText.textContent = 'Close Excel';
-    btn.title = 'Close source Excel file';
-  } else {
-    btn.classList.remove('excel-btn-open');
-    btn.classList.add('excel-btn-closed');
-    btnText.textContent = 'Open Excel';
-    btn.title = 'Open source Excel file';
-  }
 }
 
-async function toggleExcelFile() {
+async function openExcelFile() {
   const files = getExcelFilesForSheet(currentSheet);
   if (files.length === 0) return;
 
-  const btn = document.getElementById('excelToggleBtn');
+  const btn = document.getElementById('excelOpenBtn');
   const btnText = document.getElementById('excelBtnText');
-  const isOpen = isCurrentSheetExcelOpen();
 
   btn.disabled = true;
-  btnText.textContent = isOpen ? 'Closing...' : 'Opening...';
-
-  const endpoint = isOpen ? '/api/close-excel' : '/api/open-excel';
+  btnText.textContent = 'Opening...';
 
   try {
     for (const filePath of files) {
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/open-excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file_path: filePath })
       });
 
       const result = await response.json();
-
-      if (!isOpen) {
-        if (response.ok) {
-          excelOpenFiles[filePath] = true;
-        } else {
-          throw new Error(result.detail || 'Failed to open');
-        }
-      } else {
-        excelOpenFiles[filePath] = false;
+      if (!response.ok) {
+        throw new Error(result.detail || 'Failed to open');
       }
     }
 
     const fileName = files.map(f => f.split(/[\\\/]/).pop()).join(', ');
-    showNotification(isOpen ? `Closed: ${fileName}` : `Opened: ${fileName}`, 'success');
+    showNotification(`Opened: ${fileName}`, 'success');
   } catch (error) {
     showNotification(`Error: ${error.message}`, 'error');
   } finally {
     btn.disabled = false;
-    updateExcelButton();
+    btnText.textContent = 'Open Excel';
   }
 }
 
-async function refreshExcelStatus() {
-  try {
-    const response = await fetch('/api/excel-status');
-    const data = await response.json();
-    const openPaths = data.processes || {};
-
-    for (const filePath in excelOpenFiles) {
-      if (excelOpenFiles[filePath] && !openPaths[filePath]) {
-        excelOpenFiles[filePath] = false;
-      }
-    }
-    for (const filePath in openPaths) {
-      excelOpenFiles[filePath] = true;
-    }
-    updateExcelButton();
-  } catch (err) {
-    // Non-critical
-  }
-}
-
-window.toggleExcelFile = toggleExcelFile;
+window.openExcelFile = openExcelFile;
 
 // ===== INITIALIZATION =====
 function init() {
@@ -1229,9 +1179,8 @@ function init() {
   // Due soon badge
   updateDueSoonBadgeOnLoad();
 
-  // Excel button - fetch actual status immediately, then poll
-  refreshExcelStatus();
-  setInterval(refreshExcelStatus, 10000);
+  // Excel button
+  updateExcelButton();
 
   // SSE
   connectSSE();
