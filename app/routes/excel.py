@@ -22,7 +22,7 @@ async def open_excel(request: ExcelFileRequest):
         raise HTTPException(status_code=404, detail="File not found")
 
     try:
-        return open_excel_file(abs_path)
+        return open_excel_file(abs_path, request.file_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to open file: {str(e)}")
 
@@ -31,7 +31,7 @@ async def open_excel(request: ExcelFileRequest):
 async def close_excel(request: ExcelFileRequest):
     """Close a previously opened Excel file."""
     abs_path = os.path.abspath(request.file_path)
-    return close_excel_file(abs_path)
+    return close_excel_file(abs_path, request.file_path)
 
 
 @router.get("/excel-status")

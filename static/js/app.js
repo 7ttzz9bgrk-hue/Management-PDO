@@ -1229,8 +1229,8 @@ function init() {
   // Due soon badge
   updateDueSoonBadgeOnLoad();
 
-  // Excel button
-  updateExcelButton();
+  // Excel button - fetch actual status immediately, then poll
+  refreshExcelStatus();
   setInterval(refreshExcelStatus, 10000);
 
   // SSE
