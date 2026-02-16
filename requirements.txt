@@ -1,5 +1,7 @@
 fastapi
+jinja2
 pandas
+python-multipart
 uvicorn
 openpyxl
 watchdog
