@@ -29,7 +29,7 @@ Click the **Edit** button on any task to modify its data:
 **Notes:**
 - Changes are saved to the original source Excel file
 - New columns are added to the Excel sheet for all rows (empty for other rows)
-- If the Excel file was modified externally, you'll be prompted to refresh
+- If the Excel file was modified externally, the app will refresh automatically 
 
 ## Customization
 
