@@ -179,17 +179,25 @@
   </div>
 
   <!-- Excel Floating Button -->
-  <button id="excelOpenBtn"
-          onclick="openExcelFile()"
-          class="excel-float-btn excel-btn-closed fixed bottom-6 right-6 z-50 flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg font-medium text-white text-sm transition-all duration-300 hidden"
-          title="Open source Excel file">
-    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/>
-      <path d="M8 12.5L10.5 17H9l-1.5-3-1.5 3H4.5L7 12.5 4.5 8H6l1.5 3L9 8h1.5L8 12.5z"/>
-    </svg>
-    <span id="excelBtnText">Open Excel</span>
-    <span id="excelBtnFile" class="text-xs opacity-60 hidden"></span>
-  </button>
+  <div class="fixed bottom-6 right-6 z-50">
+    <!-- File Selection Popup -->
+    <div id="excelFilePopup" class="excel-file-popup hidden">
+      <div id="excelFileList"></div>
+    </div>
+    <button id="excelOpenBtn"
+            onclick="openExcelFile()"
+            class="excel-float-btn excel-btn-closed flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg font-medium text-white text-sm transition-all duration-300 hidden"
+            title="Open source Excel file">
+      <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/>
+        <path d="M8 12.5L10.5 17H9l-1.5-3-1.5 3H4.5L7 12.5 4.5 8H6l1.5 3L9 8h1.5L8 12.5z"/>
+      </svg>
+      <span id="excelBtnText">Open Excel</span>
+      <span id="excelBtnFile" class="text-xs opacity-60 hidden"></span>
+    </button>
+  </div>
+  <!-- Excel file popup overlay (click to close) -->
+  <div id="excelPopupOverlay" class="fixed inset-0 z-40 hidden"></div>
 
   <!-- Due Soon Modal -->
   <div id="dueSoonModal" class="due-soon-modal hidden">
