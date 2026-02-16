@@ -153,17 +153,103 @@ Open http://localhost:8889
 
 ```
 project/
-├── main.py              # FastAPI server with file watching
-├── requirements.txt
-├── mockData.xlsx        # Your Excel data (gitignored)
+├── main.py                      # Application entry point (runs Uvicorn server)
+├── requirements.txt             # Python dependencies
+├── mockData.xlsx                # Sample Excel data (gitignored)
+├── app/                         # Main application package
+│   ├── __init__.py              # FastAPI app creation, startup/shutdown events
+│   ├── config.py                # Configuration (file paths, ports, debounce settings)
+│   ├── models.py                # Pydantic data models (TaskUpdate, ExcelFileRequest)
+│   ├── state.py                 # Global state (cached data, version, connected clients)
+│   ├── routes/                  # API route handlers
+│   │   ├── __init__.py          # Route registration
+│   │   ├── pages.py             # HTML page serving (GET /)
+│   │   ├── data.py              # Data fetch and save endpoints
+│   │   ├── events.py            # Server-Sent Events for real-time updates
+│   │   └── excel.py             # Excel file open/close operations
+│   └── services/                # Business logic layer
+│       ├── __init__.py
+│       ├── data_loader.py       # Excel data loading, parsing, and reload logic
+│       ├── excel_io.py          # Shared-access file reading (Windows compatible)
+│       ├── excel_manager.py     # System-level Excel open/close
+│       └── file_watcher.py      # Watchdog-based file change monitoring
 ├── templates/
-│   └── index.html       # HTML template with Jinja2
+│   └── index.html               # Main web interface (Jinja2 + Tailwind CSS)
 └── static/
     ├── css/
-    │   └── styles.css   # Custom animations and styles
+    │   └── styles.css           # Custom animations, dark theme, component styles
     └── js/
-        └── app.js       # Application logic
+        └── app.js               # Frontend logic (filtering, editing, SSE, Due Soon modal)
 ```
+
+## Use Case: Team Workload Management
+
+This application is designed for teams where individual employees manage their own workload in Excel and supervisors need visibility across the team.
+
+### How It Works
+
+**Step 1 - Employee manages their own tasks:**
+
+An employee (e.g. a junior engineer) maintains their personal Excel spreadsheet on a shared network drive. They log their tasks, set priorities, update statuses, and track deadlines - all using familiar Excel columns. For example:
+
+| Task | Project | Status | Priority | Deadline | Assignee |
+|------|---------|--------|----------|----------|----------|
+| Review P&ID drawings | Plant Upgrade | In Progress | High | 2026-03-01 | John |
+| Submit RFI for valve specs | Maintenance Turnaround | Not Started | Medium | 2026-03-15 | John |
+| Update hazard register | Safety Review | Completed | Low | 2026-02-10 | John |
+
+**Step 2 - Employee shares their spreadsheet location:**
+
+The employee provides their manager or supervisor with the file path to their Excel spreadsheet on the shared drive, e.g.:
+
+```
+//FILESERVER01/SharedDrive/Teams/Engineering/John_Tasks.xlsx
+```
+
+**Step 3 - Manager configures the viewer to monitor multiple people:**
+
+The manager or supervisor adds each team member's spreadsheet path into `app/config.py`:
+
+```python
+FILE_PATHS = [
+    "//FILESERVER01/SharedDrive/Teams/Engineering/John_Tasks.xlsx",
+    "//FILESERVER01/SharedDrive/Teams/Engineering/Sarah_Tasks.xlsx",
+    "//FILESERVER01/SharedDrive/Teams/Engineering/Mike_Tasks.xlsx",
+    "//FILESERVER01/SharedDrive/Teams/Engineering/Lisa_Tasks.xlsx",
+]
+```
+
+**Step 4 - Manager gets a unified overview:**
+
+The manager launches the web app and instantly sees an aggregated view of everyone's tasks across all projects. They can:
+
+- **Switch between team members** using the sheet tabs (sheets with the same name across files are merged, giving a combined project view)
+- **Filter by status** to see what's blocked or not started
+- **Filter by priority** to focus on urgent items
+- **Use the Due Soon popup** to see all upcoming deadlines across every team member and project in one place
+- **Edit tasks directly** in the browser if corrections are needed, which writes changes back to the source Excel file
+
+This gives supervisors a live dashboard of team workload without requiring employees to learn new software - everyone continues working in Excel.
+
+## Future Functionality
+
+### Performance Analytics and Charting
+
+Planned features for team-level performance visibility:
+
+- **Tasks completed over time** - Plot the number of tasks each employee has completed on a weekly, daily, or monthly basis. Compare employees side-by-side to identify workload imbalances or recognise high performers.
+- **Project distribution pie charts** - Visualise which projects are currently being worked on across the team as a pie chart, showing the proportion of active tasks per project.
+- **Workload heatmaps** - Identify periods of high and low activity across the team to support better resource planning.
+
+### Priority and Deadline Reminder Popup
+
+A small HTML popup notification will appear in the corner of the screen to constantly remind users of high-priority or approaching-deadline tasks. This will function similarly to a previously built **Lesson Learnt** program, which cycled through random lesson-learnt entries using a custom HTML overlay with animations and timed transitions. The reminder popup will:
+
+- **Persist in the bottom corner** of the browser (or a configurable position) without blocking the main interface
+- **Cycle through high-priority and near-deadline tasks** at regular intervals, drawing attention to items that need action
+- **Use styled HTML with animations** (fade-in/out, slide transitions) to keep reminders visible but non-intrusive, similar to the rotating lesson-learnt display
+- **Highlight urgency visually** with colour-coded borders or backgrounds (red for overdue, amber for due soon, etc.)
+- **Be dismissible or snooze-able** so users can temporarily acknowledge a reminder and return focus to their current work
 
 ## API Endpoints
 
