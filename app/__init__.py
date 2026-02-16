@@ -1,3 +1,5 @@
+from pathlib import Path
+
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 import threading
@@ -6,11 +8,13 @@ from app.routes import register_routes
 from app.services.data_loader import reload_data
 from app.services.file_watcher import start_file_watcher
 
+BASE_DIR = Path(__file__).resolve().parent.parent
+
 
 def create_app() -> FastAPI:
     application = FastAPI(title="Management PDO")
 
-    application.mount("/static", StaticFiles(directory="static"), name="static")
+    application.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
     register_routes(application)
 
