@@ -1108,10 +1108,62 @@ function updateExcelButton() {
   }
 }
 
-async function openExcelFile() {
+function openExcelFile() {
   const files = getExcelFilesForSheet(currentSheet);
   if (files.length === 0) return;
 
+  // If only one file, open it directly
+  if (files.length === 1) {
+    openSingleExcelFile(files[0]);
+    return;
+  }
+
+  // Multiple files: show selection popup
+  toggleExcelFilePopup(files);
+}
+
+function toggleExcelFilePopup(files) {
+  const popup = document.getElementById('excelFilePopup');
+  const overlay = document.getElementById('excelPopupOverlay');
+
+  if (!popup.classList.contains('hidden')) {
+    closeExcelFilePopup();
+    return;
+  }
+
+  const list = document.getElementById('excelFileList');
+  list.innerHTML = '';
+
+  for (const filePath of files) {
+    const fileName = filePath.split(/[\\\/]/).pop();
+    const item = document.createElement('div');
+    item.className = 'excel-file-popup-item';
+    item.innerHTML = `
+      <svg fill="currentColor" viewBox="0 0 24 24">
+        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM6 20V4h7v5h5v11H6z"/>
+        <path d="M8 12.5L10.5 17H9l-1.5-3-1.5 3H4.5L7 12.5 4.5 8H6l1.5 3L9 8h1.5L8 12.5z"/>
+      </svg>
+      <span title="${fileName}">${fileName}</span>
+    `;
+    item.addEventListener('click', () => {
+      closeExcelFilePopup();
+      openSingleExcelFile(filePath);
+    });
+    list.appendChild(item);
+  }
+
+  popup.classList.remove('hidden');
+  overlay.classList.remove('hidden');
+}
+
+function closeExcelFilePopup() {
+  const popup = document.getElementById('excelFilePopup');
+  const overlay = document.getElementById('excelPopupOverlay');
+  popup.classList.add('hidden');
+  overlay.classList.add('hidden');
+}
+
+async function openSingleExcelFile(filePath) {
   const btn = document.getElementById('excelOpenBtn');
   const btnText = document.getElementById('excelBtnText');
 
@@ -1119,20 +1171,18 @@ async function openExcelFile() {
   btnText.textContent = 'Opening...';
 
   try {
-    for (const filePath of files) {
-      const response = await fetch('/api/open-excel', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ file_path: filePath })
-      });
+    const response = await fetch('/api/open-excel', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file_path: filePath })
+    });
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.detail || 'Failed to open');
-      }
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.detail || 'Failed to open');
     }
 
-    const fileName = files.map(f => f.split(/[\\\/]/).pop()).join(', ');
+    const fileName = filePath.split(/[\\\/]/).pop();
     showNotification(`Opened: ${fileName}`, 'success');
   } catch (error) {
     showNotification(`Error: ${error.message}`, 'error');
@@ -1143,6 +1193,7 @@ async function openExcelFile() {
 }
 
 window.openExcelFile = openExcelFile;
+window.closeExcelFilePopup = closeExcelFilePopup;
 
 // ===== INITIALIZATION =====
 function init() {
@@ -1181,6 +1232,12 @@ function init() {
 
   // Excel button
   updateExcelButton();
+
+  // Close excel file popup when clicking overlay
+  const excelOverlay = document.getElementById('excelPopupOverlay');
+  if (excelOverlay) {
+    excelOverlay.addEventListener('click', closeExcelFilePopup);
+  }
 
   // SSE
   connectSSE();
