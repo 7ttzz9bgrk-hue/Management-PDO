@@ -1,27 +1,24 @@
 // ===== GLOBAL STATE =====
-// These are initialized from the HTML template via window.AppConfig
 let allSheetsData = window.AppConfig?.allSheetsData || {};
 let currentDataVersion = window.AppConfig?.dataVersion || 0;
 let currentSheet = window.AppConfig?.initialSheet || '';
 let buttonData = allSheetsData[currentSheet];
 let selectedTask = null;
 let allTasks = [];
-let filterBarLocked = false;
-let collapseTimeout = null;
-let originalDetails = {}; // Store original details for cancel functionality
-let excelOpenFiles = {}; // Track which files are currently open { filePath: true }
+let filterBarOpen = false;
+let originalDetails = {};
 
 const buttonColors = [
-  'bg-blue-500 hover:bg-blue-700',
-  'bg-green-500 hover:bg-green-700',
-  'bg-red-500 hover:bg-red-700',
-  'bg-yellow-500 hover:bg-yellow-700',
-  'bg-purple-500 hover:bg-purple-700',
-  'bg-pink-500 hover:bg-pink-700',
-  'bg-indigo-500 hover:bg-indigo-700',
-  'bg-orange-500 hover:bg-orange-700',
-  'bg-teal-500 hover:bg-teal-700',
-  'bg-cyan-500 hover:bg-cyan-700'
+  'bg-blue-500 hover:bg-blue-600',
+  'bg-emerald-500 hover:bg-emerald-600',
+  'bg-rose-500 hover:bg-rose-600',
+  'bg-amber-500 hover:bg-amber-600',
+  'bg-violet-500 hover:bg-violet-600',
+  'bg-pink-500 hover:bg-pink-600',
+  'bg-indigo-500 hover:bg-indigo-600',
+  'bg-orange-500 hover:bg-orange-600',
+  'bg-teal-500 hover:bg-teal-600',
+  'bg-cyan-500 hover:bg-cyan-600'
 ];
 
 // ===== DOM ELEMENTS =====
@@ -35,29 +32,21 @@ const scrollRightBtn = document.getElementById('scrollRight');
 const leftShadow = document.getElementById('leftShadow');
 const rightShadow = document.getElementById('rightShadow');
 
-// ===== FILTER BAR FUNCTIONALITY =====
-function expandFilterBar() {
-  clearTimeout(collapseTimeout);
-  filterBar.classList.remove('filter-bar-collapsed');
-  filterBar.classList.add('filter-bar-expanded');
-  filterContent.classList.remove('filter-content-hidden');
-  filterContent.classList.add('filter-content-visible');
-  expandIcon.style.transform = 'rotate(180deg)';
+// ===== FILTER BAR (click-to-toggle) =====
+function toggleFilterBar() {
+  filterBarOpen = !filterBarOpen;
+  if (filterBarOpen) {
+    filterContent.classList.remove('hidden');
+    filterBar.classList.add('filter-expanded');
+    expandIcon.style.transform = 'rotate(180deg)';
+  } else {
+    filterContent.classList.add('hidden');
+    filterBar.classList.remove('filter-expanded');
+    expandIcon.style.transform = 'rotate(0deg)';
+  }
 }
 
-function collapseFilterBar() {
-  if (filterBarLocked) return;
-
-  collapseTimeout = setTimeout(() => {
-    if (!filterBarLocked) {
-      filterBar.classList.remove('filter-bar-expanded');
-      filterBar.classList.add('filter-bar-collapsed');
-      filterContent.classList.remove('filter-content-visible');
-      filterContent.classList.add('filter-content-hidden');
-      expandIcon.style.transform = 'rotate(0deg)';
-    }
-  }, 500);
-}
+window.toggleFilterBar = toggleFilterBar;
 
 function updateActiveFilterBadge() {
   const searchTerm = document.getElementById('searchBox').value;
@@ -74,16 +63,14 @@ function updateActiveFilterBadge() {
   if (activeCount > 0) {
     activeFilterBadge.textContent = `${activeCount} active`;
     activeFilterBadge.classList.remove('hidden');
-    filterBar.classList.add('pulse-active');
     document.getElementById('clearFilters').classList.remove('hidden');
   } else {
     activeFilterBadge.classList.add('hidden');
-    filterBar.classList.remove('pulse-active');
     document.getElementById('clearFilters').classList.add('hidden');
   }
 }
 
-// ===== TASK PARSING UTILITIES =====
+// ===== TASK PARSING =====
 function parseTaskDetails(details) {
   const lines = details.split('\n');
   let description = '';
@@ -123,23 +110,23 @@ function truncateDescription(description, maxWords = 5) {
 }
 
 function getStatusBadge(status) {
-  const statusColors = {
-    'Not Started': 'bg-gray-600 text-gray-200',
-    'In Progress': 'bg-yellow-600 text-yellow-100',
-    'Completed': 'bg-green-600 text-green-100',
-    'Blocked': 'bg-red-600 text-red-100'
+  const statusConfig = {
+    'Not Started': 'bg-gray-500/20 text-gray-400',
+    'In Progress': 'bg-amber-500/20 text-amber-400',
+    'Completed': 'bg-emerald-500/20 text-emerald-400',
+    'Blocked': 'bg-rose-500/20 text-rose-400'
   };
-  const color = statusColors[status] || 'bg-gray-600 text-gray-200';
-  return `<span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}">${status}</span>`;
+  const color = statusConfig[status] || 'bg-gray-500/20 text-gray-400';
+  return `<span class="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${color}">${status}</span>`;
 }
 
 function getPriorityIndicator(priority) {
-  const priorityIcons = {
-    'High': '<span class="text-red-400 font-bold">⚠️ High</span>',
-    'Medium': '<span class="text-yellow-400 font-bold">➡️ Medium</span>',
-    'Low': '<span class="text-blue-400 font-bold">⬇️ Low</span>'
+  const config = {
+    'High': '<span class="text-rose-400 text-xs font-semibold">High</span>',
+    'Medium': '<span class="text-amber-400 text-xs font-semibold">Med</span>',
+    'Low': '<span class="text-blue-400 text-xs font-semibold">Low</span>'
   };
-  return priorityIcons[priority] || '';
+  return config[priority] || '';
 }
 
 // ===== FILTERING =====
@@ -150,18 +137,10 @@ function getFilteredTasks() {
   const hideCompleted = document.getElementById('hideCompleted').checked;
 
   return allTasks.filter(task => {
-    if (searchTerm && !task.name.toLowerCase().includes(searchTerm)) {
-      return false;
-    }
-    if (hideCompleted && task.status === 'Completed') {
-      return false;
-    }
-    if (statusFilter !== 'All' && task.status !== statusFilter) {
-      return false;
-    }
-    if (priorityFilter !== 'All' && task.priority !== priorityFilter) {
-      return false;
-    }
+    if (searchTerm && !task.name.toLowerCase().includes(searchTerm)) return false;
+    if (hideCompleted && task.status === 'Completed') return false;
+    if (statusFilter !== 'All' && task.status !== statusFilter) return false;
+    if (priorityFilter !== 'All' && task.priority !== priorityFilter) return false;
     return true;
   });
 }
@@ -178,7 +157,6 @@ function updateTaskCounter(filteredCount, totalCount) {
 function applyFilters() {
   createButtons(currentSheet, true);
   updateActiveFilterBadge();
-
   if (selectedTask) {
     showTaskDetails(selectedTask);
   }
@@ -198,18 +176,13 @@ function createButtons(sheetName, shouldApplyFilters = false) {
     instances.forEach((instance, index) => {
       const details = typeof instance === 'string' ? instance : instance.details;
       const metadata = typeof instance === 'object' && instance.metadata ? instance.metadata : null;
-
       const { description, status, priority, assignedTo, deadline } = parseTaskDetails(details);
+
       allTasks.push({
         name: taskName,
         instanceIndex: index,
-        description: description,
-        status: status,
-        priority: priority,
-        assignedTo: assignedTo,
-        deadline: deadline,
-        details: details,
-        metadata: metadata
+        description, status, priority, assignedTo, deadline,
+        details, metadata
       });
     });
   });
@@ -226,14 +199,20 @@ function createButtons(sheetName, shouldApplyFilters = false) {
     button.id = `task-${index}`;
 
     const colorClass = buttonColors[index % buttonColors.length];
-    button.className = `task-button ${colorClass} text-white font-bold py-4 px-6 rounded-lg transition duration-300 shadow-lg whitespace-nowrap`;
+    button.className = `task-button ${colorClass} text-white`;
 
     container.appendChild(button);
   });
 
   if (selectedTask && !uniqueTaskNames.includes(selectedTask)) {
     selectedTask = null;
-    document.getElementById('textDisplay').innerHTML = '<p class="text-gray-500 italic">Click a task to view details</p>';
+    document.getElementById('textDisplay').innerHTML = `
+      <div class="flex flex-col items-center justify-center h-32 text-gray-600">
+        <svg class="w-10 h-10 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+        </svg>
+        <p class="text-sm">Click a task to view details</p>
+      </div>`;
   }
 
   updateScrollIndicators();
@@ -260,25 +239,22 @@ function toggleTaskInstance(instanceId) {
   }
 }
 
-// ===== TASK DETAILS DISPLAY =====
+// ===== TASK DETAILS =====
 function showTaskDetails(taskName) {
   selectedTask = taskName;
-  console.log(`Task selected: ${taskName} in project: ${currentSheet}`);
 
   const display = document.getElementById('textDisplay');
   const filteredTasks = getFilteredTasks();
   const instances = filteredTasks.filter(t => t.name === taskName);
 
-  if (instances.length === 0) {
-    return;
-  }
+  if (instances.length === 0) return;
 
   let html = '';
 
   const totalInstances = allTasks.filter(t => t.name === taskName).length;
   if (totalInstances > 1) {
-    html += `<div class="mb-4 text-sm text-gray-400">
-      <span class="font-semibold">${taskName}</span> - Showing ${instances.length} ${instances.length !== totalInstances ? `of ${totalInstances}` : ''} instance${instances.length !== 1 ? 's' : ''}
+    html += `<div class="mb-4 text-xs text-gray-500">
+      <span class="font-semibold text-gray-400">${taskName}</span> &mdash; ${instances.length} ${instances.length !== totalInstances ? `of ${totalInstances}` : ''} instance${instances.length !== 1 ? 's' : ''}
     </div>`;
   }
 
@@ -290,8 +266,7 @@ function showTaskDetails(taskName) {
     const hasMetadata = task.metadata !== null;
     const taskIndex = allTasks.indexOf(task);
 
-    const bgColor = index % 2 === 0 ? 'bg-gray-800' : 'bg-gray-750';
-    const borderColor = index % 2 === 0 ? 'border-l-blue-500' : 'border-l-purple-500';
+    const borderColor = index % 2 === 0 ? 'border-l-violet-500/50' : 'border-l-blue-500/50';
 
     const collapsedClass = 'task-instance-expanded';
     const detailsClass = 'task-details-visible';
@@ -300,58 +275,58 @@ function showTaskDetails(taskName) {
     const sourceFile = hasMetadata ? task.metadata.file_path.split(/[\\\/]/).pop() : '';
 
     html += `
-      <div id="instance-${taskName}-${index}" class="task-instance ${collapsedClass} ${bgColor} border-l-4 ${borderColor} rounded-lg mb-3 overflow-hidden">
-        <!-- Instance Header (Always Visible) -->
-        <div class="p-4 cursor-pointer hover:bg-gray-700 transition flex items-center justify-between" onclick="toggleTaskInstance('${taskName}-${index}')">
-          <div class="flex items-center gap-3 flex-1">
-            <svg id="icon-${taskName}-${index}" class="toggle-icon ${iconClass} w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <div id="instance-${taskName}-${index}" class="task-instance ${collapsedClass} bg-white/[0.02] border border-white/5 border-l-2 ${borderColor} rounded-lg mb-3 overflow-hidden">
+        <!-- Header -->
+        <div class="p-4 cursor-pointer hover:bg-white/[0.03] transition flex items-center justify-between" onclick="toggleTaskInstance('${taskName}-${index}')">
+          <div class="flex items-center gap-3 flex-1 min-w-0">
+            <svg id="icon-${taskName}-${index}" class="toggle-icon ${iconClass} w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
             </svg>
-            <div class="flex-1 flex flex-wrap items-center gap-2">
-              <span class="font-semibold text-white">${taskName}</span>
-              ${shortDesc ? `<span class="text-gray-400">- ${shortDesc}</span>` : ''}
+            <div class="flex-1 flex flex-wrap items-center gap-2 min-w-0">
+              <span class="font-semibold text-sm text-white">${taskName}</span>
+              ${shortDesc ? `<span class="text-gray-500 text-xs truncate">${shortDesc}</span>` : ''}
               ${statusBadge}
-              ${priorityIndicator ? `<span class="text-sm">${priorityIndicator}</span>` : ''}
-              ${deadlineText ? `<span class="text-sm text-orange-400 font-medium">${deadlineText}</span>` : ''}
+              ${priorityIndicator}
+              ${deadlineText ? `<span class="text-xs text-orange-400/80">${deadlineText}</span>` : ''}
             </div>
           </div>
           ${hasMetadata ? `
             <button onclick="event.stopPropagation(); startEdit('${taskName}-${index}', ${taskIndex})"
-                    class="edit-btn bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm font-medium ml-2">
+                    class="edit-btn bg-accent-500/20 hover:bg-accent-500/30 text-accent-400 px-3 py-1 rounded-md text-xs font-medium ml-2 transition">
               Edit
             </button>
           ` : ''}
         </div>
 
-        <!-- Instance Details (Collapsible) -->
+        <!-- Details -->
         <div id="details-${taskName}-${index}" class="task-details ${detailsClass} px-4 pb-4 pt-0">
           <!-- View Mode -->
-          <div id="view-${taskName}-${index}" class="pl-8 border-l-2 border-gray-600 ml-2 space-y-2">
-            <div class="whitespace-pre-line text-gray-300 leading-relaxed">${task.details.replace(/Deadline:\s*(\d{4}-\d{2}-\d{2})\s*\d{2}:\d{2}:\d{2}/g, (m, d) => { const p = d.split('-'); return 'Deadline: ' + p[2] + '/' + p[1] + '/' + p[0].slice(-2); })}</div>
+          <div id="view-${taskName}-${index}" class="pl-7 border-l border-white/5 ml-2 space-y-2">
+            <div class="whitespace-pre-line text-gray-400 text-sm leading-relaxed">${task.details.replace(/Deadline:\s*(\d{4}-\d{2}-\d{2})\s*\d{2}:\d{2}:\d{2}/g, (m, d) => { const p = d.split('-'); return 'Deadline: ' + p[2] + '/' + p[1] + '/' + p[0].slice(-2); })}</div>
           </div>
 
-          <!-- Edit Mode (hidden by default) -->
-          <div id="edit-${taskName}-${index}" class="hidden pl-8 border-l-2 border-indigo-500 ml-2 space-y-4">
+          <!-- Edit Mode -->
+          <div id="edit-${taskName}-${index}" class="hidden pl-7 border-l border-accent-500/30 ml-2 space-y-4">
             <textarea id="textarea-${taskName}-${index}"
                       class="edit-textarea"
                       data-task-index="${taskIndex}">${task.details}</textarea>
 
-            <div class="flex gap-3">
+            <div class="flex gap-2">
               <button onclick="saveEdit('${taskName}-${index}')"
                       id="save-btn-${taskName}-${index}"
-                      class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium">
+                      class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition">
                 Save Changes
               </button>
               <button onclick="cancelEdit('${taskName}-${index}')"
-                      class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded font-medium">
+                      class="bg-white/5 hover:bg-white/10 text-gray-300 px-4 py-1.5 rounded-lg text-sm font-medium transition">
                 Cancel
               </button>
             </div>
 
-            <div class="text-xs text-gray-500">
-              <p>Format: <code class="bg-gray-700 px-1 rounded">ColumnName: value</code></p>
+            <div class="text-xs text-gray-600">
+              <p>Format: <code class="bg-white/5 px-1.5 py-0.5 rounded text-gray-400">ColumnName: value</code></p>
               <p>Add new columns by adding new lines in this format.</p>
-              ${hasMetadata ? `<p class="mt-1">Source: ${sourceFile}</p>` : ''}
+              ${hasMetadata ? `<p class="mt-1 text-gray-600">Source: ${sourceFile}</p>` : ''}
             </div>
           </div>
         </div>
@@ -362,9 +337,9 @@ function showTaskDetails(taskName) {
   display.innerHTML = html;
 
   document.querySelectorAll('.task-button').forEach(btn => {
-    btn.classList.remove('ring-4', 'ring-white');
+    btn.classList.remove('task-button-selected');
     if (btn.textContent === taskName) {
-      btn.classList.add('ring-4', 'ring-white');
+      btn.classList.add('task-button-selected');
     }
   });
 }
@@ -402,7 +377,7 @@ async function saveEdit(instanceId) {
   const task = allTasks[taskIndex];
 
   if (!task || !task.metadata) {
-    showEditNotification('Error: Cannot save - missing metadata', 'error');
+    showNotification('Error: Cannot save - missing metadata', 'error');
     return;
   }
 
@@ -417,7 +392,6 @@ async function saveEdit(instanceId) {
     if (colonIndex > 0) {
       const key = line.substring(0, colonIndex).trim();
       const value = line.substring(colonIndex + 1).trim();
-
       newColumnValues[key] = value;
 
       if (existingColumns.includes(key)) {
@@ -432,7 +406,6 @@ async function saveEdit(instanceId) {
     if (col !== existingColumns[0]) {
       const oldValue = task.metadata.raw_values[col];
       const hasNewValue = newColumnValues.hasOwnProperty(col);
-
       if (oldValue && !hasNewValue) {
         updates[col] = '';
       }
@@ -441,14 +414,12 @@ async function saveEdit(instanceId) {
 
   saveBtn.disabled = true;
   const originalBtnText = saveBtn.innerHTML;
-  saveBtn.innerHTML = '<span class="saving-spinner">↻</span> Saving...';
+  saveBtn.innerHTML = '<span class="saving-spinner">&#x21bb;</span> Saving...';
 
   try {
     const response = await fetch('/api/save-task', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         file_path: task.metadata.file_path,
         sheet_name: task.metadata.sheet_name,
@@ -462,39 +433,41 @@ async function saveEdit(instanceId) {
     const result = await response.json();
 
     if (response.ok) {
-      showEditNotification('Changes saved successfully!', 'success');
+      showNotification('Changes saved successfully!', 'success');
       cancelEdit(instanceId);
     } else {
       throw new Error(result.detail || 'Failed to save');
     }
-
   } catch (error) {
-    showEditNotification(`Error: ${error.message}`, 'error');
+    showNotification(`Error: ${error.message}`, 'error');
   } finally {
     saveBtn.disabled = false;
     saveBtn.innerHTML = originalBtnText;
   }
 }
 
-function showEditNotification(message, type = 'success') {
-  let notification = document.getElementById('editNotification');
+function showNotification(message, type = 'success') {
+  let notification = document.getElementById('appNotification');
   if (!notification) {
     notification = document.createElement('div');
-    notification.id = 'editNotification';
-    notification.className = 'fixed bottom-4 right-4 px-4 py-2 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50 text-white';
+    notification.id = 'appNotification';
+    notification.className = 'notification-toast';
     document.body.appendChild(notification);
   }
 
-  notification.classList.remove('bg-green-600', 'bg-red-600');
-  notification.classList.add(type === 'success' ? 'bg-green-600' : 'bg-red-600');
-  notification.innerHTML = message;
+  notification.classList.remove('bg-emerald-600', 'bg-rose-600');
+  notification.classList.add(type === 'success' ? 'bg-emerald-600' : 'bg-rose-600');
+  notification.textContent = message;
 
-  notification.classList.remove('translate-y-20', 'opacity-0');
+  notification.classList.add('visible');
 
   setTimeout(() => {
-    notification.classList.add('translate-y-20', 'opacity-0');
+    notification.classList.remove('visible');
   }, 3000);
 }
+
+// Keep old name for backward compat with due-soon code
+const showEditNotification = showNotification;
 
 // ===== SHEET SWITCHING =====
 function switchSheet(sheetName) {
@@ -511,20 +484,22 @@ function switchSheet(sheetName) {
   createButtons(sheetName, true);
   updateActiveFilterBadge();
 
-  document.getElementById('textDisplay').innerHTML = '<p class="text-gray-500 italic">Click a task to view details</p>';
+  document.getElementById('textDisplay').innerHTML = `
+    <div class="flex flex-col items-center justify-center h-32 text-gray-600">
+      <svg class="w-10 h-10 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+      </svg>
+      <p class="text-sm">Click a task to view details</p>
+    </div>`;
 
   document.querySelectorAll('.sheet-btn').forEach(btn => {
+    btn.classList.remove('sheet-btn-active');
     if (btn.dataset.sheet === sheetName) {
-      btn.classList.remove('bg-gray-700');
-      btn.classList.add('bg-purple-600');
-    } else {
-      btn.classList.remove('bg-purple-600');
-      btn.classList.add('bg-gray-700');
+      btn.classList.add('sheet-btn-active');
     }
   });
 
   updateExcelButton();
-  console.log(`Switched to project: ${sheetName}`);
 }
 
 // ===== HORIZONTAL SCROLL =====
@@ -553,29 +528,23 @@ let reconnectAttempts = 0;
 const maxReconnectAttempts = 10;
 
 function connectSSE() {
-  if (eventSource) {
-    eventSource.close();
-  }
+  if (eventSource) eventSource.close();
 
   eventSource = new EventSource('/events');
 
   eventSource.onopen = function() {
-    console.log('SSE connected - listening for data updates');
     reconnectAttempts = 0;
   };
 
   eventSource.onmessage = function(event) {
     const newVersion = parseInt(event.data);
     if (newVersion > currentDataVersion) {
-      console.log(`Data update detected (v${currentDataVersion} -> v${newVersion}), refreshing...`);
       fetchLatestData();
     }
   };
 
-  eventSource.onerror = function(err) {
-    console.log('SSE connection error, will attempt reconnect...');
+  eventSource.onerror = function() {
     eventSource.close();
-
     if (reconnectAttempts < maxReconnectAttempts) {
       reconnectAttempts++;
       setTimeout(connectSSE, 2000 * reconnectAttempts);
@@ -603,7 +572,13 @@ async function fetchLatestData() {
           showTaskDetails(selectedTask);
         } else if (selectedTask) {
           selectedTask = null;
-          document.getElementById('textDisplay').innerHTML = '<p class="text-gray-500 italic">Click a task to view details</p>';
+          document.getElementById('textDisplay').innerHTML = `
+            <div class="flex flex-col items-center justify-center h-32 text-gray-600">
+              <svg class="w-10 h-10 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+              </svg>
+              <p class="text-sm">Click a task to view details</p>
+            </div>`;
         }
       } else {
         if (newSheetNames.length > 0) {
@@ -611,10 +586,7 @@ async function fetchLatestData() {
         }
       }
 
-      showUpdateNotification();
-      console.log(`Data refreshed to version ${currentDataVersion}`);
-
-      // Update due soon badge
+      showNotification('Data updated', 'success');
       updateDueSoonBadgeOnLoad();
     }
   } catch (err) {
@@ -634,13 +606,12 @@ function updateSheetButtons(newSheetNames) {
     newSheetNames.forEach(sheetName => {
       const button = document.createElement('button');
       button.onclick = () => switchSheet(sheetName);
-      button.className = 'sheet-btn text-left bg-gray-700 hover:bg-gray-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-300 shadow-md';
+      button.className = 'sheet-btn w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 truncate';
       button.dataset.sheet = sheetName;
       button.textContent = sheetName;
 
       if (sheetName === currentSheet) {
-        button.classList.remove('bg-gray-700');
-        button.classList.add('bg-purple-600');
+        button.classList.add('sheet-btn-active');
       }
 
       container.appendChild(button);
@@ -648,24 +619,7 @@ function updateSheetButtons(newSheetNames) {
   }
 }
 
-function showUpdateNotification() {
-  let notification = document.getElementById('updateNotification');
-  if (!notification) {
-    notification = document.createElement('div');
-    notification.id = 'updateNotification';
-    notification.className = 'fixed bottom-4 right-4 bg-green-600 text-white px-4 py-2 rounded-lg shadow-lg transform translate-y-20 opacity-0 transition-all duration-300 z-50';
-    notification.innerHTML = '<span class="mr-2">&#10003;</span> Data updated';
-    document.body.appendChild(notification);
-  }
-
-  notification.classList.remove('translate-y-20', 'opacity-0');
-
-  setTimeout(() => {
-    notification.classList.add('translate-y-20', 'opacity-0');
-  }, 2000);
-}
-
-// ===== DUE SOON POPUP FUNCTIONALITY =====
+// ===== DUE SOON =====
 let dueSoonOriginalDetails = {};
 
 function openDueSoonPopup() {
@@ -681,11 +635,8 @@ function closeDueSoonPopup() {
   document.body.style.overflow = '';
 }
 
-// Close modal on Escape key
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') {
-    closeDueSoonPopup();
-  }
+  if (e.key === 'Escape') closeDueSoonPopup();
 });
 
 function getAllTasksAcrossProjects() {
@@ -700,21 +651,13 @@ function getAllTasksAcrossProjects() {
       instances.forEach((instance, index) => {
         const details = typeof instance === 'string' ? instance : instance.details;
         const metadata = typeof instance === 'object' && instance.metadata ? instance.metadata : null;
-
         const { description, status, priority, assignedTo, deadline } = parseTaskDetails(details);
 
         allProjectTasks.push({
-          name: taskName,
-          project: sheetName,
-          instanceIndex: index,
-          description: description,
-          status: status,
-          priority: priority,
-          assignedTo: assignedTo,
-          deadline: deadline,
+          name: taskName, project: sheetName, instanceIndex: index,
+          description, status, priority, assignedTo, deadline,
           deadlineDate: parseDeadlineToDate(deadline),
-          details: details,
-          metadata: metadata
+          details, metadata
         });
       });
     });
@@ -726,7 +669,6 @@ function getAllTasksAcrossProjects() {
 function parseDeadlineToDate(deadline) {
   if (!deadline) return null;
 
-  // Try parsing DD/MM/YY format
   const ddmmyy = deadline.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
   if (ddmmyy) {
     let year = parseInt(ddmmyy[3]);
@@ -734,13 +676,11 @@ function parseDeadlineToDate(deadline) {
     return new Date(year, parseInt(ddmmyy[2]) - 1, parseInt(ddmmyy[1]));
   }
 
-  // Try parsing YYYY-MM-DD format
   const yyyymmdd = deadline.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (yyyymmdd) {
     return new Date(parseInt(yyyymmdd[1]), parseInt(yyyymmdd[2]) - 1, parseInt(yyyymmdd[3]));
   }
 
-  // Try general Date parsing
   const parsed = new Date(deadline);
   return isNaN(parsed) ? null : parsed;
 }
@@ -776,12 +716,10 @@ function filterDueSoonTasks() {
 
   let tasks = getAllTasksAcrossProjects();
 
-  // Filter by completion status
   if (hideCompleted) {
     tasks = tasks.filter(t => t.status !== 'Completed');
   }
 
-  // Filter by days
   if (daysFilter !== 'all') {
     const days = parseInt(daysFilter);
     tasks = tasks.filter(t => {
@@ -790,7 +728,6 @@ function filterDueSoonTasks() {
     });
   }
 
-  // Sort by deadline (soonest first), then by priority
   const priorityOrder = { 'High': 0, 'Medium': 1, 'Low': 2, '': 3 };
   tasks.sort((a, b) => {
     const daysA = getDaysUntilDeadline(a.deadlineDate);
@@ -799,13 +736,8 @@ function filterDueSoonTasks() {
     return (priorityOrder[a.priority] || 3) - (priorityOrder[b.priority] || 3);
   });
 
-  // Update counter
   document.getElementById('dueSoonCounter').textContent = `${tasks.length} task${tasks.length !== 1 ? 's' : ''}`;
-
-  // Update badge on sidebar button
   updateDueSoonBadge(tasks.length);
-
-  // Group and render tasks
   renderDueSoonTasks(tasks, groupBy);
 }
 
@@ -825,15 +757,9 @@ function groupTasks(tasks, groupBy) {
   tasks.forEach(task => {
     let key;
     switch (groupBy) {
-      case 'priority':
-        key = task.priority || 'No Priority';
-        break;
-      case 'status':
-        key = task.status || 'No Status';
-        break;
-      case 'project':
-        key = task.project;
-        break;
+      case 'priority': key = task.priority || 'No Priority'; break;
+      case 'status': key = task.status || 'No Status'; break;
+      case 'project': key = task.project; break;
       case 'deadline':
         const daysUntil = getDaysUntilDeadline(task.deadlineDate);
         if (daysUntil < 0) key = 'Overdue';
@@ -842,10 +768,8 @@ function groupTasks(tasks, groupBy) {
         else if (daysUntil <= 7) key = 'Due in 4-7 Days';
         else key = 'Due Later';
         break;
-      default:
-        key = 'All Tasks';
+      default: key = 'All Tasks';
     }
-
     if (!groups[key]) groups[key] = [];
     groups[key].push(task);
   });
@@ -855,14 +779,10 @@ function groupTasks(tasks, groupBy) {
 
 function getGroupOrder(groupBy) {
   switch (groupBy) {
-    case 'priority':
-      return ['High', 'Medium', 'Low', 'No Priority'];
-    case 'status':
-      return ['Blocked', 'In Progress', 'Not Started', 'Completed', 'No Status'];
-    case 'deadline':
-      return ['Overdue', 'Due Today', 'Due in 1-3 Days', 'Due in 4-7 Days', 'Due Later'];
-    default:
-      return null;
+    case 'priority': return ['High', 'Medium', 'Low', 'No Priority'];
+    case 'status': return ['Blocked', 'In Progress', 'Not Started', 'Completed', 'No Status'];
+    case 'deadline': return ['Overdue', 'Due Today', 'Due in 1-3 Days', 'Due in 4-7 Days', 'Due Later'];
+    default: return null;
   }
 }
 
@@ -879,8 +799,7 @@ function getGroupIndicator(groupBy, key) {
       if (key === 'Completed') return '<div class="status-completed-indicator"></div>';
       if (key === 'Blocked') return '<div class="status-blocked-indicator"></div>';
       return '';
-    default:
-      return '';
+    default: return '';
   }
 }
 
@@ -895,8 +814,7 @@ function renderDueSoonTasks(tasks, groupBy) {
         </svg>
         <h3>No tasks due soon</h3>
         <p>All caught up! No urgent tasks require your attention.</p>
-      </div>
-    `;
+      </div>`;
     return;
   }
 
@@ -916,7 +834,7 @@ function renderDueSoonTasks(tasks, groupBy) {
   let html = '';
 
   sortedKeys.forEach(groupKey => {
-    const groupTasks = groups[groupKey];
+    const groupTaskList = groups[groupKey];
     const indicator = getGroupIndicator(groupBy, groupKey);
 
     html += `
@@ -924,12 +842,12 @@ function renderDueSoonTasks(tasks, groupBy) {
         <div class="due-soon-group-header">
           ${indicator}
           <h3>${groupKey}</h3>
-          <span class="due-soon-group-badge">${groupTasks.length}</span>
+          <span class="due-soon-group-badge">${groupTaskList.length}</span>
         </div>
         <div class="due-soon-group-tasks">
     `;
 
-    groupTasks.forEach((task, idx) => {
+    groupTaskList.forEach((task) => {
       const taskId = `duesoon-${task.project}-${task.name}-${task.instanceIndex}`.replace(/[^a-zA-Z0-9-]/g, '_');
       const daysUntil = getDaysUntilDeadline(task.deadlineDate);
       const deadlineClass = getDeadlineClass(daysUntil);
@@ -946,7 +864,7 @@ function renderDueSoonTasks(tasks, groupBy) {
             </svg>
             <div class="due-soon-task-name">
               <span title="${task.name}">${task.name}</span>
-              <div class="due-soon-task-project">Project: ${task.project}</div>
+              <div class="due-soon-task-project">${task.project}</div>
             </div>
             <div class="due-soon-task-meta">
               ${statusBadge}
@@ -956,30 +874,21 @@ function renderDueSoonTasks(tasks, groupBy) {
           </div>
           <div class="due-soon-task-details">
             <div class="due-soon-task-details-content">
-              <!-- View Mode -->
               <div id="view-${taskId}">
                 <pre>${task.details.replace(/Deadline:\s*(\d{4}-\d{2}-\d{2})\s*\d{2}:\d{2}:\d{2}/g, (m, d) => { const p = d.split('-'); return 'Deadline: ' + p[2] + '/' + p[1] + '/' + p[0].slice(-2); })}</pre>
-                ${hasMetadata ? `
-                  <div class="mt-3 flex gap-2">
+                <div class="mt-3 flex gap-2">
+                  ${hasMetadata ? `
                     <button onclick="event.stopPropagation(); startDueSoonEdit('${taskId}', '${task.project}', '${task.name}', ${task.instanceIndex})"
-                            class="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 rounded text-sm font-medium transition">
+                            class="bg-accent-500/20 hover:bg-accent-500/30 text-accent-400 px-3 py-1.5 rounded-md text-xs font-medium transition">
                       Edit Task
                     </button>
-                    <button onclick="event.stopPropagation(); goToTask('${task.project}', '${task.name}')"
-                            class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-sm font-medium transition">
-                      Go to Project
-                    </button>
-                  </div>
-                ` : `
-                  <div class="mt-3">
-                    <button onclick="event.stopPropagation(); goToTask('${task.project}', '${task.name}')"
-                            class="bg-gray-600 hover:bg-gray-700 text-white px-3 py-1.5 rounded text-sm font-medium transition">
-                      Go to Project
-                    </button>
-                  </div>
-                `}
+                  ` : ''}
+                  <button onclick="event.stopPropagation(); goToTask('${task.project}', '${task.name}')"
+                          class="bg-white/5 hover:bg-white/10 text-gray-400 px-3 py-1.5 rounded-md text-xs font-medium transition">
+                    Go to Project
+                  </button>
+                </div>
               </div>
-              <!-- Edit Mode -->
               <div id="edit-${taskId}" class="hidden">
                 <div class="due-soon-edit-area">
                   <textarea id="textarea-${taskId}" class="due-soon-edit-textarea"
@@ -989,15 +898,15 @@ function renderDueSoonTasks(tasks, groupBy) {
                   <div class="due-soon-edit-buttons">
                     <button onclick="saveDueSoonEdit('${taskId}')"
                             id="save-btn-${taskId}"
-                            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded font-medium text-sm">
+                            class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-1.5 rounded-lg text-sm font-medium transition">
                       Save Changes
                     </button>
                     <button onclick="cancelDueSoonEdit('${taskId}')"
-                            class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded font-medium text-sm">
+                            class="bg-white/5 hover:bg-white/10 text-gray-300 px-4 py-1.5 rounded-lg text-sm font-medium transition">
                       Cancel
                     </button>
                   </div>
-                  <p class="text-xs text-gray-500 mt-2">Format: <code class="bg-gray-700 px-1 rounded">ColumnName: value</code></p>
+                  <p class="text-xs text-gray-600 mt-2">Format: <code class="bg-white/5 px-1 rounded text-gray-400">ColumnName: value</code></p>
                 </div>
               </div>
             </div>
@@ -1017,9 +926,7 @@ function renderDueSoonTasks(tasks, groupBy) {
 
 function toggleDueSoonTask(taskId) {
   const task = document.getElementById(`task-${taskId}`);
-  if (task) {
-    task.classList.toggle('expanded');
-  }
+  if (task) task.classList.toggle('expanded');
 }
 
 function goToTask(project, taskName) {
@@ -1027,7 +934,6 @@ function goToTask(project, taskName) {
   switchSheet(project);
   setTimeout(() => {
     showTaskDetails(taskName);
-    // Scroll the task button into view
     const buttons = document.querySelectorAll('.task-button');
     buttons.forEach(btn => {
       if (btn.textContent === taskName) {
@@ -1043,7 +949,6 @@ function startDueSoonEdit(taskId, project, taskName, instanceIndex) {
   const textarea = document.getElementById(`textarea-${taskId}`);
 
   dueSoonOriginalDetails[taskId] = textarea.value;
-
   viewDiv.classList.add('hidden');
   editDiv.classList.remove('hidden');
   textarea.focus();
@@ -1069,10 +974,9 @@ async function saveDueSoonEdit(taskId) {
   const taskName = textarea.dataset.taskName;
   const instanceIndex = parseInt(textarea.dataset.instanceIndex);
 
-  // Find the task in allSheetsData
   const instances = allSheetsData[project]?.[taskName];
   if (!instances || !instances[instanceIndex]) {
-    showEditNotification('Error: Task not found', 'error');
+    showNotification('Error: Task not found', 'error');
     return;
   }
 
@@ -1080,7 +984,7 @@ async function saveDueSoonEdit(taskId) {
   const metadata = typeof instance === 'object' && instance.metadata ? instance.metadata : null;
 
   if (!metadata) {
-    showEditNotification('Error: Cannot save - missing metadata', 'error');
+    showNotification('Error: Cannot save - missing metadata', 'error');
     return;
   }
 
@@ -1095,7 +999,6 @@ async function saveDueSoonEdit(taskId) {
     if (colonIndex > 0) {
       const key = line.substring(0, colonIndex).trim();
       const value = line.substring(colonIndex + 1).trim();
-
       newColumnValues[key] = value;
 
       if (existingColumns.includes(key)) {
@@ -1110,7 +1013,6 @@ async function saveDueSoonEdit(taskId) {
     if (col !== existingColumns[0]) {
       const oldValue = metadata.raw_values[col];
       const hasNewValue = newColumnValues.hasOwnProperty(col);
-
       if (oldValue && !hasNewValue) {
         updates[col] = '';
       }
@@ -1119,14 +1021,12 @@ async function saveDueSoonEdit(taskId) {
 
   saveBtn.disabled = true;
   const originalBtnText = saveBtn.innerHTML;
-  saveBtn.innerHTML = '<span class="saving-spinner">↻</span> Saving...';
+  saveBtn.innerHTML = '<span class="saving-spinner">&#x21bb;</span> Saving...';
 
   try {
     const response = await fetch('/api/save-task', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         file_path: metadata.file_path,
         sheet_name: metadata.sheet_name,
@@ -1140,16 +1040,14 @@ async function saveDueSoonEdit(taskId) {
     const result = await response.json();
 
     if (response.ok) {
-      showEditNotification('Changes saved successfully!', 'success');
+      showNotification('Changes saved successfully!', 'success');
       cancelDueSoonEdit(taskId);
-      // Refresh the popup after a brief delay
       setTimeout(() => filterDueSoonTasks(), 500);
     } else {
       throw new Error(result.detail || 'Failed to save');
     }
-
   } catch (error) {
-    showEditNotification(`Error: ${error.message}`, 'error');
+    showNotification(`Error: ${error.message}`, 'error');
   } finally {
     saveBtn.disabled = false;
     saveBtn.innerHTML = originalBtnText;
@@ -1157,13 +1055,9 @@ async function saveDueSoonEdit(taskId) {
 }
 
 function updateDueSoonBadgeOnLoad() {
-  // Count tasks due within 7 days (default filter) excluding completed
   let tasks = getAllTasksAcrossProjects();
   tasks = tasks.filter(t => t.status !== 'Completed');
-  tasks = tasks.filter(t => {
-    const daysUntil = getDaysUntilDeadline(t.deadlineDate);
-    return daysUntil <= 7;
-  });
+  tasks = tasks.filter(t => getDaysUntilDeadline(t.deadlineDate) <= 7);
   updateDueSoonBadge(tasks.length);
 }
 
@@ -1193,14 +1087,8 @@ function getExcelFilesForSheet(sheetName) {
   return [...filePaths];
 }
 
-function isCurrentSheetExcelOpen() {
-  const files = getExcelFilesForSheet(currentSheet);
-  return files.length > 0 && files.every(f => excelOpenFiles[f]);
-}
-
 function updateExcelButton() {
-  const btn = document.getElementById('excelToggleBtn');
-  const btnText = document.getElementById('excelBtnText');
+  const btn = document.getElementById('excelOpenBtn');
   const btnFile = document.getElementById('excelBtnFile');
   const files = getExcelFilesForSheet(currentSheet);
 
@@ -1213,142 +1101,51 @@ function updateExcelButton() {
 
   btn.classList.remove('hidden');
 
-  // Show the file name(s)
   const fileNames = files.map(f => f.split(/[\\\/]/).pop());
   if (fileNames.length > 0) {
     btnFile.textContent = fileNames.length === 1 ? fileNames[0] : `${fileNames.length} files`;
     btnFile.classList.remove('hidden');
   }
-
-  const isOpen = isCurrentSheetExcelOpen();
-  if (isOpen) {
-    btn.classList.remove('excel-btn-closed');
-    btn.classList.add('excel-btn-open');
-    btnText.textContent = 'Close Excel';
-    btn.title = 'Close source Excel file';
-  } else {
-    btn.classList.remove('excel-btn-open');
-    btn.classList.add('excel-btn-closed');
-    btnText.textContent = 'Open Excel';
-    btn.title = 'Open source Excel file';
-  }
 }
 
-async function toggleExcelFile() {
+async function openExcelFile() {
   const files = getExcelFilesForSheet(currentSheet);
   if (files.length === 0) return;
 
-  const btn = document.getElementById('excelToggleBtn');
+  const btn = document.getElementById('excelOpenBtn');
   const btnText = document.getElementById('excelBtnText');
-  const isOpen = isCurrentSheetExcelOpen();
 
-  // Disable button during operation
   btn.disabled = true;
-  btnText.textContent = isOpen ? 'Closing...' : 'Opening...';
-
-  const endpoint = isOpen ? '/api/close-excel' : '/api/open-excel';
+  btnText.textContent = 'Opening...';
 
   try {
     for (const filePath of files) {
-      const response = await fetch(endpoint, {
+      const response = await fetch('/api/open-excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file_path: filePath })
       });
 
       const result = await response.json();
-
-      if (!isOpen) {
-        // Opening
-        if (response.ok) {
-          excelOpenFiles[filePath] = true;
-        } else {
-          throw new Error(result.detail || 'Failed to open');
-        }
-      } else {
-        // Closing
-        excelOpenFiles[filePath] = false;
+      if (!response.ok) {
+        throw new Error(result.detail || 'Failed to open');
       }
     }
 
     const fileName = files.map(f => f.split(/[\\\/]/).pop()).join(', ');
-    showEditNotification(
-      isOpen ? `Closed: ${fileName}` : `Opened: ${fileName}`,
-      'success'
-    );
+    showNotification(`Opened: ${fileName}`, 'success');
   } catch (error) {
-    showEditNotification(`Error: ${error.message}`, 'error');
+    showNotification(`Error: ${error.message}`, 'error');
   } finally {
     btn.disabled = false;
-    updateExcelButton();
+    btnText.textContent = 'Open Excel';
   }
 }
 
-// Periodically check if tracked processes are still alive
-async function refreshExcelStatus() {
-  try {
-    const response = await fetch('/api/excel-status');
-    const data = await response.json();
-    const openPaths = data.processes || {};
-
-    // Update tracking: mark files not in the server's list as closed
-    for (const filePath in excelOpenFiles) {
-      if (excelOpenFiles[filePath] && !openPaths[filePath]) {
-        excelOpenFiles[filePath] = false;
-      }
-    }
-    // Mark files the server reports as open
-    for (const filePath in openPaths) {
-      excelOpenFiles[filePath] = true;
-    }
-    updateExcelButton();
-  } catch (err) {
-    // Silently fail - status check is non-critical
-  }
-}
-
-window.toggleExcelFile = toggleExcelFile;
+window.openExcelFile = openExcelFile;
 
 // ===== INITIALIZATION =====
 function init() {
-  // Filter bar event listeners
-  filterBar.addEventListener('mouseenter', expandFilterBar);
-  filterBar.addEventListener('mouseleave', collapseFilterBar);
-
-  // Lock filter bar when interacting with inputs
-  const filterInputs = [
-    document.getElementById('searchBox'),
-    document.getElementById('statusFilter'),
-    document.getElementById('priorityFilter'),
-    document.getElementById('hideCompleted')
-  ];
-
-  filterInputs.forEach(input => {
-    input.addEventListener('focus', () => {
-      filterBarLocked = true;
-      expandFilterBar();
-    });
-
-    input.addEventListener('blur', () => {
-      setTimeout(() => {
-        const anyFocused = filterInputs.some(i => i === document.activeElement);
-        if (!anyFocused) {
-          filterBarLocked = false;
-          collapseFilterBar();
-        }
-      }, 100);
-    });
-  });
-
-  // Clear filters button
-  document.getElementById('clearFilters').addEventListener('click', () => {
-    document.getElementById('searchBox').value = '';
-    document.getElementById('statusFilter').value = 'All';
-    document.getElementById('priorityFilter').value = 'All';
-    document.getElementById('hideCompleted').checked = false;
-    applyFilters();
-  });
-
   // Scroll buttons
   scrollLeftBtn.addEventListener('click', () => {
     scrollContainer.scrollBy({ left: -300, behavior: 'smooth' });
@@ -1361,36 +1158,40 @@ function init() {
   scrollContainer.addEventListener('scroll', updateScrollIndicators);
   window.addEventListener('resize', updateScrollIndicators);
 
-  // Filter event listeners
+  // Filter listeners
   document.getElementById('searchBox').addEventListener('input', applyFilters);
   document.getElementById('statusFilter').addEventListener('change', applyFilters);
   document.getElementById('priorityFilter').addEventListener('change', applyFilters);
   document.getElementById('hideCompleted').addEventListener('change', applyFilters);
 
+  // Clear filters
+  document.getElementById('clearFilters').addEventListener('click', () => {
+    document.getElementById('searchBox').value = '';
+    document.getElementById('statusFilter').value = 'All';
+    document.getElementById('priorityFilter').value = 'All';
+    document.getElementById('hideCompleted').checked = false;
+    applyFilters();
+  });
+
   // Initialize view
   switchSheet(currentSheet);
 
-  // Initialize due soon badge count
+  // Due soon badge
   updateDueSoonBadgeOnLoad();
 
-  // Initialize Excel button state
+  // Excel button
   updateExcelButton();
 
-  // Poll Excel process status every 10 seconds
-  setInterval(refreshExcelStatus, 10000);
-
-  // Start SSE connection
+  // SSE
   connectSSE();
 
-  // Cleanup on page unload
+  // Cleanup
   window.addEventListener('beforeunload', () => {
-    if (eventSource) {
-      eventSource.close();
-    }
+    if (eventSource) eventSource.close();
   });
 }
 
-// Make functions globally available for onclick handlers
+// Global function bindings
 window.switchSheet = switchSheet;
 window.showTaskDetails = showTaskDetails;
 window.toggleTaskInstance = toggleTaskInstance;
@@ -1398,5 +1199,4 @@ window.startEdit = startEdit;
 window.cancelEdit = cancelEdit;
 window.saveEdit = saveEdit;
 
-// Run init when DOM is ready
 document.addEventListener('DOMContentLoaded', init);

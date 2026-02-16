@@ -1,0 +1,31 @@
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+import threading
+
+from app.routes import register_routes
+from app.services.data_loader import reload_data
+from app.services.file_watcher import start_file_watcher
+
+
+def create_app() -> FastAPI:
+    application = FastAPI(title="Management PDO")
+
+    application.mount("/static", StaticFiles(directory="static"), name="static")
+
+    register_routes(application)
+
+    @application.on_event("startup")
+    async def startup_event():
+        reload_data()
+        threading.Thread(target=start_file_watcher, daemon=True).start()
+
+    @application.on_event("shutdown")
+    async def shutdown_event():
+        from app.services.file_watcher import observer
+        try:
+            observer.stop()
+            observer.join()
+        except Exception:
+            pass
+
+    return application
