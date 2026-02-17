@@ -201,5 +201,6 @@ def _validate_data(all_sheets_data):
 
 
 def _notify_clients():
-    for client in state.connected_clients:
+    # Iterate over a snapshot to avoid issues if clients connect/disconnect mid-loop.
+    for client in list(state.connected_clients):
         client["needs_update"] = True
