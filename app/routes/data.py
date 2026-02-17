@@ -71,9 +71,15 @@ async def save_task(update: TaskUpdate):
                     detail=f"Row position changed. Expected '{update.task_name}' but found '{current_task_name}'. Please refresh and try again.",
                 )
 
+            unknown_columns = [col for col in update.updates if col not in df.columns]
+            if unknown_columns:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown column(s): {', '.join(unknown_columns)}",
+                )
+
             for col, value in update.updates.items():
-                if col in df.columns:
-                    df.at[update.row_index, col] = value if value != "" else None
+                df.at[update.row_index, col] = value if value != "" else None
 
             if update.new_columns:
                 for col, value in update.new_columns.items():
