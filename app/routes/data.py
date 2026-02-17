@@ -2,8 +2,6 @@ import io
 import logging
 import os
 import time
-from datetime import datetime
-
 from fastapi import APIRouter, HTTPException
 from openpyxl import load_workbook
 import pandas as pd
@@ -123,7 +121,12 @@ async def save_task(update: TaskUpdate):
                     )
                 raise
 
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Saved changes to {os.path.basename(abs_path)}, sheet '{update.sheet_name}', row {update.row_index}")
+            logger.info(
+                "Saved changes to %s, sheet '%s', row %d",
+                os.path.basename(abs_path),
+                update.sheet_name,
+                update.row_index,
+            )
             time.sleep(0.5)
 
         finally:
