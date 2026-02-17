@@ -22,7 +22,8 @@ async def _event_generator():
 
             await asyncio.sleep(0.5)
     finally:
-        state.connected_clients.remove(client)
+        if client in state.connected_clients:
+            state.connected_clients.remove(client)
 
 
 @router.get("/events")

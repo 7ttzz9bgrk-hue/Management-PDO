@@ -59,10 +59,19 @@ def start_file_watcher():
     for file_path in FILE_PATHS:
         abs_path = os.path.abspath(file_path)
         dir_path = os.path.dirname(abs_path) or "."
-        if dir_path not in watched_dirs:
-            watched_dirs.add(dir_path)
-            observer.schedule(event_handler, dir_path, recursive=False)
-            print(f"Watching directory: {dir_path}")
+        if dir_path in watched_dirs:
+            continue
+        if not os.path.isdir(dir_path):
+            print(f"Skipping watch (directory not found): {dir_path}")
+            continue
+
+        watched_dirs.add(dir_path)
+        observer.schedule(event_handler, dir_path, recursive=False)
+        print(f"Watching directory: {dir_path}")
+
+    if not watched_dirs:
+        print("File watcher not started: no valid directories to watch")
+        return
 
     observer.start()
     print("File watcher started - will auto-refresh when Excel files change")

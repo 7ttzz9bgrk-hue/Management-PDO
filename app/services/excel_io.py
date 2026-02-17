@@ -25,8 +25,19 @@ def read_file_with_shared_access(file_path: str) -> bytes:
         CreateFileW.restype = wintypes.HANDLE
 
         ReadFile = ctypes.windll.kernel32.ReadFile
+        ReadFile.argtypes = [
+            wintypes.HANDLE,
+            wintypes.LPVOID,
+            wintypes.DWORD,
+            ctypes.POINTER(wintypes.DWORD),
+            wintypes.LPVOID,
+        ]
+        ReadFile.restype = wintypes.BOOL
+
         GetFileSize = ctypes.windll.kernel32.GetFileSize
         CloseHandle = ctypes.windll.kernel32.CloseHandle
+
+        INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
 
         handle = CreateFileW(
             file_path,
@@ -38,14 +49,16 @@ def read_file_with_shared_access(file_path: str) -> bytes:
             None,
         )
 
-        if handle == -1:
+        if handle == INVALID_HANDLE_VALUE:
             raise IOError(f"Cannot open file: {file_path}")
 
         try:
             file_size = GetFileSize(handle, None)
             buffer = ctypes.create_string_buffer(file_size)
             bytes_read = wintypes.DWORD()
-            ReadFile(handle, buffer, file_size, ctypes.byref(bytes_read), None)
+            ok = ReadFile(handle, buffer, file_size, ctypes.byref(bytes_read), None)
+            if not ok:
+                raise IOError(f"Failed to read file: {file_path}")
             return buffer.raw[: bytes_read.value]
         finally:
             CloseHandle(handle)
