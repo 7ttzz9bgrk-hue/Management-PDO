@@ -18,19 +18,16 @@ class ExcelFileHandler(FileSystemEventHandler):
         self.file_paths = [os.path.abspath(fp) for fp in file_paths]
         self.last_reload = 0
 
-    def on_modified(self, event):
-        if event.is_directory:
+    def _handle_change(self, path: str):
+        changed_path = os.path.abspath(path)
+
+        if not changed_path.lower().endswith((".xlsx", ".xlsm", ".xls")):
             return
 
-        modified_path = os.path.abspath(event.src_path)
-
-        if not modified_path.lower().endswith((".xlsx", ".xlsm", ".xls")):
+        if os.path.basename(changed_path).startswith("~$"):
             return
 
-        if os.path.basename(modified_path).startswith("~$"):
-            return
-
-        if modified_path not in self.file_paths:
+        if changed_path not in self.file_paths:
             return
 
         with state.write_lock:
@@ -41,11 +38,26 @@ class ExcelFileHandler(FileSystemEventHandler):
         current_time = time.time()
         if current_time - self.last_reload > DEBOUNCE_SECONDS:
             self.last_reload = current_time
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Detected change in: {os.path.basename(modified_path)}")
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Detected change in: {os.path.basename(changed_path)}")
             time.sleep(0.5)
 
             from app.services.data_loader import reload_data
             reload_data()
+
+    def on_modified(self, event):
+        if event.is_directory:
+            return
+        self._handle_change(event.src_path)
+
+    def on_created(self, event):
+        if event.is_directory:
+            return
+        self._handle_change(event.src_path)
+
+    def on_moved(self, event):
+        if event.is_directory:
+            return
+        self._handle_change(event.dest_path)
 
 
 def start_file_watcher():
