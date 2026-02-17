@@ -71,6 +71,20 @@ async def save_task(update: TaskUpdate):
                     detail=f"Row position changed. Expected '{update.task_name}' but found '{current_task_name}'. Please refresh and try again.",
                 )
 
+            invalid_update_columns = [
+                str(col) for col in update.updates
+                if str(col).strip() == ""
+            ]
+            invalid_new_columns = [
+                str(col) for col in update.new_columns
+                if str(col).strip() == ""
+            ]
+            if invalid_update_columns or invalid_new_columns:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Column names cannot be blank",
+                )
+
             unknown_columns = [col for col in update.updates if col not in df.columns]
             if unknown_columns:
                 raise HTTPException(
