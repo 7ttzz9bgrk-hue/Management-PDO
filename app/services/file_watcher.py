@@ -6,7 +6,7 @@ from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
 from app.config import FILE_PATHS, DEBOUNCE_SECONDS
-from app.state import write_in_progress, write_lock
+import app.state as state
 
 observer = None
 
@@ -33,8 +33,8 @@ class ExcelFileHandler(FileSystemEventHandler):
         if modified_path not in self.file_paths:
             return
 
-        with write_lock:
-            if write_in_progress:
+        with state.write_lock:
+            if state.write_in_progress:
                 print(f"[{datetime.now().strftime('%H:%M:%S')}] Ignoring change during write operation")
                 return
 
