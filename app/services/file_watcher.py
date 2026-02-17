@@ -24,7 +24,7 @@ class ExcelFileHandler(FileSystemEventHandler):
 
         modified_path = os.path.abspath(event.src_path)
 
-        if not modified_path.lower().endswith(".xlsx"):
+        if not modified_path.lower().endswith((".xlsx", ".xlsm", ".xls")):
             return
 
         if os.path.basename(modified_path).startswith("~$"):
