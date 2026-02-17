@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 class TaskUpdate(BaseModel):
@@ -7,8 +7,8 @@ class TaskUpdate(BaseModel):
     sheet_name: str = Field(min_length=1)
     row_index: int = Field(ge=0)
     task_name: str = Field(min_length=1)
-    updates: Dict[str, Any]
-    new_columns: Optional[Dict[str, Any]] = None
+    updates: Dict[str, Any] = Field(default_factory=dict)
+    new_columns: Dict[str, Any] = Field(default_factory=dict)
 
 
 class ExcelFileRequest(BaseModel):
