@@ -36,6 +36,9 @@ async def save_task(update: TaskUpdate):
     try:
         abs_path = normalize_path(update.file_path)
 
+        if not update.updates and not update.new_columns:
+            raise HTTPException(status_code=400, detail="No changes provided")
+
         if not is_allowed_path(abs_path, FILE_PATHS):
             raise HTTPException(status_code=403, detail="File not in allowed paths")
 
