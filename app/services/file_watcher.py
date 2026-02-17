@@ -15,7 +15,7 @@ class ExcelFileHandler(FileSystemEventHandler):
     """Watches for changes to Excel files and triggers data reload."""
 
     def __init__(self, file_paths):
-        self.file_paths = [os.path.abspath(fp) for fp in file_paths]
+        self.file_paths = {os.path.abspath(fp) for fp in file_paths}
         self.last_reload = 0
 
     def _handle_change(self, path: str):
