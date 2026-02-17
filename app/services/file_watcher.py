@@ -57,7 +57,23 @@ class ExcelFileHandler(FileSystemEventHandler):
     def on_moved(self, event):
         if event.is_directory:
             return
+        self._handle_change(event.src_path)
         self._handle_change(event.dest_path)
+
+    def on_deleted(self, event):
+        if event.is_directory:
+            return
+
+        deleted_path = os.path.abspath(event.src_path)
+        if deleted_path not in self.file_paths:
+            return
+
+        current_time = time.time()
+        if current_time - self.last_reload > DEBOUNCE_SECONDS:
+            self.last_reload = current_time
+            print(f"[{datetime.now().strftime('%H:%M:%S')}] Detected removal of: {os.path.basename(deleted_path)}")
+            from app.services.data_loader import reload_data
+            reload_data()
 
 
 def start_file_watcher():
