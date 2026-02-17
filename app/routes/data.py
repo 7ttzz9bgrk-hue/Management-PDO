@@ -78,6 +78,14 @@ async def save_task(update: TaskUpdate):
                     detail=f"Unknown column(s): {', '.join(unknown_columns)}",
                 )
 
+            overlapping_columns = set(update.updates).intersection(update.new_columns)
+            if overlapping_columns:
+                overlap_list = ", ".join(sorted(overlapping_columns))
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Columns cannot appear in both updates and new_columns: {overlap_list}",
+                )
+
             for col, value in update.updates.items():
                 df.at[update.row_index, col] = value if value != "" else None
 
