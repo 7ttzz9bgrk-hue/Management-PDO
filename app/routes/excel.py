@@ -22,7 +22,7 @@ async def open_excel(request: ExcelFileRequest):
     if ext.lower() not in {".xlsx", ".xlsm", ".xls"}:
         raise HTTPException(status_code=400, detail="Only Excel files are supported")
 
-    if not os.path.exists(abs_path):
+    if not os.path.isfile(abs_path):
         raise HTTPException(status_code=404, detail="File not found")
 
     try:
