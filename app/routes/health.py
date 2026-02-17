@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter
 
@@ -13,5 +13,5 @@ async def health():
         'status': 'ok',
         'data_version': state.data_version,
         'last_updated': state.cached_data.get('last_updated'),
-        'timestamp': datetime.utcnow().isoformat() + 'Z',
+        'timestamp': datetime.now(timezone.utc).isoformat(),
     }
