@@ -11,6 +11,7 @@ from app.config import FILE_PATHS
 from app.models import TaskUpdate
 from app.services.excel_io import read_file_with_shared_access, safe_read_excel
 from app.services.data_loader import reload_data
+from app.services.path_guard import is_allowed_path, normalize_path
 import app.state as state
 
 router = APIRouter()
@@ -31,10 +32,9 @@ async def get_data():
 async def save_task(update: TaskUpdate):
     """Save task changes back to the Excel file."""
     try:
-        abs_path = os.path.abspath(update.file_path)
-        allowed_paths = [os.path.abspath(fp) for fp in FILE_PATHS]
+        abs_path = normalize_path(update.file_path)
 
-        if abs_path not in allowed_paths:
+        if not is_allowed_path(abs_path, FILE_PATHS):
             raise HTTPException(status_code=403, detail="File not in allowed paths")
 
         if not os.path.exists(abs_path):
