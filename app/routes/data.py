@@ -101,11 +101,13 @@ async def save_task(update: TaskUpdate):
 
             try:
                 _write_excel(abs_path, excel_data, original_col_widths, original_col_formats, original_tab_colors, original_book_views)
-            except PermissionError:
-                raise HTTPException(
-                    status_code=423,
-                    detail="Cannot save: The Excel file is open in another program. Please close Excel and try again.",
-                )
+            except (PermissionError, OSError) as err:
+                if isinstance(err, PermissionError) or getattr(err, "errno", None) == 13:
+                    raise HTTPException(
+                        status_code=423,
+                        detail="Cannot save: The Excel file is open in another program. Please close Excel and try again.",
+                    )
+                raise
 
             print(f"[{datetime.now().strftime('%H:%M:%S')}] Saved changes to {os.path.basename(abs_path)}, sheet '{update.sheet_name}', row {update.row_index}")
             time.sleep(0.5)
