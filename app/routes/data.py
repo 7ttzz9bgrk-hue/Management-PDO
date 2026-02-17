@@ -1,8 +1,7 @@
 import io
+import logging
 import os
 import time
-from datetime import datetime
-
 from fastapi import APIRouter, HTTPException
 from openpyxl import load_workbook
 import pandas as pd
@@ -11,9 +10,11 @@ from app.config import FILE_PATHS
 from app.models import TaskUpdate
 from app.services.excel_io import read_file_with_shared_access, safe_read_excel
 from app.services.data_loader import reload_data
+from app.services.path_guard import is_allowed_path, normalize_path
 import app.state as state
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/data")
@@ -31,13 +32,19 @@ async def get_data():
 async def save_task(update: TaskUpdate):
     """Save task changes back to the Excel file."""
     try:
-        abs_path = os.path.abspath(update.file_path)
-        allowed_paths = [os.path.abspath(fp) for fp in FILE_PATHS]
+        abs_path = normalize_path(update.file_path)
 
-        if abs_path not in allowed_paths:
+        if not update.updates and not update.new_columns:
+            raise HTTPException(status_code=400, detail="No changes provided")
+
+        if not is_allowed_path(abs_path, FILE_PATHS):
             raise HTTPException(status_code=403, detail="File not in allowed paths")
 
-        if not os.path.exists(abs_path):
+        _, ext = os.path.splitext(abs_path)
+        if ext.lower() not in {".xlsx", ".xlsm", ".xls"}:
+            raise HTTPException(status_code=400, detail="Only Excel files are supported")
+
+        if not os.path.isfile(abs_path):
             raise HTTPException(status_code=404, detail="File not found")
 
         with state.write_lock:
@@ -62,9 +69,37 @@ async def save_task(update: TaskUpdate):
                     detail=f"Row position changed. Expected '{update.task_name}' but found '{current_task_name}'. Please refresh and try again.",
                 )
 
+            invalid_update_columns = [
+                str(col) for col in update.updates
+                if str(col).strip() == ""
+            ]
+            invalid_new_columns = [
+                str(col) for col in update.new_columns
+                if str(col).strip() == ""
+            ]
+            if invalid_update_columns or invalid_new_columns:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Column names cannot be blank",
+                )
+
+            unknown_columns = [col for col in update.updates if col not in df.columns]
+            if unknown_columns:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown column(s): {', '.join(unknown_columns)}",
+                )
+
+            overlapping_columns = set(update.updates).intersection(update.new_columns)
+            if overlapping_columns:
+                overlap_list = ", ".join(sorted(overlapping_columns))
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Columns cannot appear in both updates and new_columns: {overlap_list}",
+                )
+
             for col, value in update.updates.items():
-                if col in df.columns:
-                    df.at[update.row_index, col] = value if value != "" else None
+                df.at[update.row_index, col] = value if value != "" else None
 
             if update.new_columns:
                 for col, value in update.new_columns.items():
@@ -78,13 +113,20 @@ async def save_task(update: TaskUpdate):
 
             try:
                 _write_excel(abs_path, excel_data, original_col_widths, original_col_formats, original_tab_colors, original_book_views)
-            except PermissionError:
-                raise HTTPException(
-                    status_code=423,
-                    detail="Cannot save: The Excel file is open in another program. Please close Excel and try again.",
-                )
+            except (PermissionError, OSError) as err:
+                if isinstance(err, PermissionError) or getattr(err, "errno", None) == 13:
+                    raise HTTPException(
+                        status_code=423,
+                        detail="Cannot save: The Excel file is open in another program. Please close Excel and try again.",
+                    )
+                raise
 
-            print(f"[{datetime.now().strftime('%H:%M:%S')}] Saved changes to {os.path.basename(abs_path)}, sheet '{update.sheet_name}', row {update.row_index}")
+            logger.info(
+                "Saved changes to %s, sheet '%s', row %d",
+                os.path.basename(abs_path),
+                update.sheet_name,
+                update.row_index,
+            )
             time.sleep(0.5)
 
         finally:
@@ -137,8 +179,8 @@ def _read_formatting(abs_path):
                         original_col_formats[sheet_name][col_letter] = cell.number_format
 
         temp_wb.close()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Could not preserve original workbook formatting: %s", exc)
 
     return original_col_widths, original_col_formats, original_tab_colors, original_book_views
 

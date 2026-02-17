@@ -21,7 +21,7 @@ def load_all_sheets_data():
         sheet_names = None
         for attempt in range(READ_RETRY_ATTEMPTS):
             try:
-                sheet_names = safe_get_sheet_names(file_path)
+                sheet_names = safe_get_sheet_names(abs_file_path)
                 break
             except Exception as e:
                 if attempt < READ_RETRY_ATTEMPTS - 1:
@@ -38,7 +38,7 @@ def load_all_sheets_data():
                 continue
 
             try:
-                df = _read_sheet_with_retry(file_path, sheet_name)
+                df = _read_sheet_with_retry(abs_file_path, sheet_name)
 
                 if df is None or df.empty or len(df.columns) < 2:
                     print(f"Warning: Skipping empty sheet '{sheet_name}' in '{file_path}'")
@@ -201,5 +201,6 @@ def _validate_data(all_sheets_data):
 
 
 def _notify_clients():
-    for client in state.connected_clients:
+    # Iterate over a snapshot to avoid issues if clients connect/disconnect mid-loop.
+    for client in list(state.connected_clients):
         client["needs_update"] = True

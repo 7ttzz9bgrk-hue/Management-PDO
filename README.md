@@ -262,3 +262,4 @@ A small HTML popup notification will appear in the corner of the screen to const
 | `/api/close-excel` | POST | Close a previously opened Excel file |
 | `/api/excel-status` | GET | Get open/close status of tracked Excel files |
 | `/events` | GET | SSE endpoint for real-time updates |
+| `/health` | GET | Lightweight health/status endpoint (service, data version, last update timestamp) |

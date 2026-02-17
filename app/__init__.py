@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -9,6 +10,7 @@ from app.services.data_loader import reload_data
 from app.services.file_watcher import start_file_watcher
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+logger = logging.getLogger(__name__)
 
 
 def create_app() -> FastAPI:
@@ -26,10 +28,12 @@ def create_app() -> FastAPI:
     @application.on_event("shutdown")
     async def shutdown_event():
         from app.services.file_watcher import observer
+
         try:
-            observer.stop()
-            observer.join()
-        except Exception:
-            pass
+            if observer is not None:
+                observer.stop()
+                observer.join(timeout=2)
+        except Exception as exc:
+            logger.warning("Failed to stop file watcher cleanly: %s", exc)
 
     return application
