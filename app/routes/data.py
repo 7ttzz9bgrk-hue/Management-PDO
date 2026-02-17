@@ -137,8 +137,8 @@ def _read_formatting(abs_path):
                         original_col_formats[sheet_name][col_letter] = cell.number_format
 
         temp_wb.close()
-    except Exception:
-        pass
+    except Exception as exc:
+        print(f"[WARN] Could not preserve original workbook formatting: {exc}")
 
     return original_col_widths, original_col_formats, original_tab_colors, original_book_views
 

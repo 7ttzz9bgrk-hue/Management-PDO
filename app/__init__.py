@@ -26,10 +26,12 @@ def create_app() -> FastAPI:
     @application.on_event("shutdown")
     async def shutdown_event():
         from app.services.file_watcher import observer
+
         try:
-            observer.stop()
-            observer.join()
-        except Exception:
-            pass
+            if observer is not None:
+                observer.stop()
+                observer.join(timeout=2)
+        except Exception as exc:
+            print(f"[WARN] Failed to stop file watcher cleanly: {exc}")
 
     return application
