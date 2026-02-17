@@ -3,6 +3,7 @@ import asyncio
 from fastapi import APIRouter
 from fastapi.responses import StreamingResponse
 
+from app.config import SSE_POLL_SECONDS
 import app.state as state
 
 router = APIRouter()
@@ -20,7 +21,7 @@ async def _event_generator():
                 client["last_version"] = state.data_version
                 yield f"data: {state.data_version}\n\n"
 
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(max(SSE_POLL_SECONDS, 0.1))
     finally:
         if client in state.connected_clients:
             state.connected_clients.remove(client)
