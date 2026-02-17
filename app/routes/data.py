@@ -1,4 +1,5 @@
 import io
+import logging
 import os
 import time
 from datetime import datetime
@@ -15,6 +16,7 @@ from app.services.path_guard import is_allowed_path, normalize_path
 import app.state as state
 
 router = APIRouter()
+logger = logging.getLogger(__name__)
 
 
 @router.get("/data")
@@ -138,7 +140,7 @@ def _read_formatting(abs_path):
 
         temp_wb.close()
     except Exception as exc:
-        print(f"[WARN] Could not preserve original workbook formatting: {exc}")
+        logger.warning("Could not preserve original workbook formatting: %s", exc)
 
     return original_col_widths, original_col_formats, original_tab_colors, original_book_views
 
