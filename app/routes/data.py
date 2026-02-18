@@ -1,6 +1,7 @@
 import io
 import logging
 import os
+import tempfile
 import time
 from fastapi import APIRouter, HTTPException
 from openpyxl import load_workbook
@@ -186,27 +187,43 @@ def _read_formatting(abs_path):
 
 
 def _write_excel(abs_path, excel_data, col_widths, col_formats, tab_colors, book_views):
-    """Write Excel data back to file, restoring formatting."""
-    with pd.ExcelWriter(abs_path, engine="openpyxl", mode="w") as writer:
-        for sname, sheet_df in excel_data.items():
-            sheet_df.to_excel(writer, sheet_name=sname, index=False)
+    """Write Excel data back to file atomically, restoring formatting.
 
-        if book_views:
-            writer.book.views = book_views
+    Writes to a temp file in the same directory first, then replaces the
+    original via rename. This prevents data loss if the write fails midway.
+    """
+    dir_name = os.path.dirname(abs_path)
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp.xlsx")
+    try:
+        os.close(tmp_fd)
+        with pd.ExcelWriter(tmp_path, engine="openpyxl", mode="w") as writer:
+            for sname, sheet_df in excel_data.items():
+                sheet_df.to_excel(writer, sheet_name=sname, index=False)
 
-        for sname in writer.sheets:
-            ws = writer.sheets[sname]
+            if book_views:
+                writer.book.views = book_views
 
-            if sname in tab_colors:
-                ws.sheet_properties.tabColor = tab_colors[sname]
+            for sname in writer.sheets:
+                ws = writer.sheets[sname]
 
-            if sname in col_widths:
-                for col_letter, width in col_widths[sname].items():
-                    ws.column_dimensions[col_letter].width = width
+                if sname in tab_colors:
+                    ws.sheet_properties.tabColor = tab_colors[sname]
 
-            if sname in col_formats:
-                for col_letter, num_format in col_formats[sname].items():
-                    from openpyxl.utils import column_index_from_string
-                    col_idx = column_index_from_string(col_letter)
-                    for row_idx in range(2, ws.max_row + 1):
-                        ws.cell(row=row_idx, column=col_idx).number_format = num_format
+                if sname in col_widths:
+                    for col_letter, width in col_widths[sname].items():
+                        ws.column_dimensions[col_letter].width = width
+
+                if sname in col_formats:
+                    for col_letter, num_format in col_formats[sname].items():
+                        from openpyxl.utils import column_index_from_string
+                        col_idx = column_index_from_string(col_letter)
+                        for row_idx in range(2, ws.max_row + 1):
+                            ws.cell(row=row_idx, column=col_idx).number_format = num_format
+
+        os.replace(tmp_path, abs_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
