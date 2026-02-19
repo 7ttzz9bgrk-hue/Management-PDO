@@ -8,7 +8,7 @@ from openpyxl import load_workbook
 import pandas as pd
 
 from app.config import FILE_PATHS
-from app.models import TaskUpdate
+from app.models import TaskUpdate, AddTaskRequest
 from app.services.excel_io import read_file_with_shared_access, safe_read_excel
 from app.services.data_loader import reload_data
 from app.services.path_guard import is_allowed_path, normalize_path
@@ -146,6 +146,120 @@ async def save_task(update: TaskUpdate):
         with state.write_lock:
             state.write_in_progress = False
         raise HTTPException(status_code=500, detail=f"Error saving task: {str(e)}")
+
+
+@router.post("/add-task")
+async def add_task(request: AddTaskRequest):
+    """Append a brand-new task row to a sheet in the Excel file."""
+    try:
+        abs_path = normalize_path(request.file_path)
+
+        if request.new_columns is None:
+            request.new_columns = {}
+
+        if not is_allowed_path(abs_path, FILE_PATHS):
+            raise HTTPException(status_code=403, detail="File not in allowed paths")
+
+        _, ext = os.path.splitext(abs_path)
+        if ext.lower() not in {".xlsx", ".xlsm", ".xls"}:
+            raise HTTPException(status_code=400, detail="Only Excel files are supported")
+
+        if not os.path.isfile(abs_path):
+            raise HTTPException(status_code=404, detail="File not found")
+
+        if not request.task_name.strip():
+            raise HTTPException(status_code=400, detail="Task name cannot be blank")
+
+        invalid_value_columns = [
+            str(col) for col in request.values
+            if str(col).strip() == ""
+        ]
+        invalid_new_columns = [
+            str(col) for col in request.new_columns
+            if str(col).strip() == ""
+        ]
+        if invalid_value_columns or invalid_new_columns:
+            raise HTTPException(status_code=400, detail="Column names cannot be blank")
+
+        overlapping_columns = set(request.values).intersection(request.new_columns)
+        if overlapping_columns:
+            overlap_list = ", ".join(sorted(overlapping_columns))
+            raise HTTPException(
+                status_code=400,
+                detail=f"Columns cannot appear in both values and new_columns: {overlap_list}",
+            )
+
+        with state.write_lock:
+            state.write_in_progress = True
+
+        try:
+            excel_data = safe_read_excel(abs_path, sheet_name=None, engine="openpyxl")
+
+            if request.sheet_name not in excel_data:
+                raise HTTPException(status_code=404, detail="Sheet not found")
+
+            df = excel_data[request.sheet_name]
+            task_name_col = df.columns[0]
+
+            unknown_columns = [col for col in request.values if col not in df.columns]
+            if unknown_columns:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown column(s): {', '.join(unknown_columns)}",
+                )
+
+            row_data = {col: None for col in df.columns}
+            row_data[task_name_col] = request.task_name
+
+            for col, value in request.values.items():
+                row_data[col] = value if value != "" else None
+
+            for col, value in request.new_columns.items():
+                if col not in df.columns:
+                    df[col] = None
+                row_data[col] = value if value != "" else None
+
+            for col in df.columns:
+                if col not in row_data:
+                    row_data[col] = None
+
+            new_row_df = pd.DataFrame([row_data], columns=df.columns)
+            df = pd.concat([df, new_row_df], ignore_index=True)
+            excel_data[request.sheet_name] = df
+
+            original_col_widths, original_col_formats, original_tab_colors, original_book_views = _read_formatting(abs_path)
+
+            try:
+                _write_excel(abs_path, excel_data, original_col_widths, original_col_formats, original_tab_colors, original_book_views)
+            except (PermissionError, OSError) as err:
+                if isinstance(err, PermissionError) or getattr(err, "errno", None) == 13:
+                    raise HTTPException(
+                        status_code=423,
+                        detail="Cannot save: The Excel file is open in another program. Please close Excel and try again.",
+                    )
+                raise
+
+            logger.info(
+                "Added task '%s' to %s, sheet '%s'",
+                request.task_name,
+                os.path.basename(abs_path),
+                request.sheet_name,
+            )
+            time.sleep(0.5)
+
+        finally:
+            with state.write_lock:
+                state.write_in_progress = False
+
+        reload_data()
+        return {"status": "success", "message": "Task added successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        with state.write_lock:
+            state.write_in_progress = False
+        raise HTTPException(status_code=500, detail=f"Error adding task: {str(e)}")
 
 
 def _read_formatting(abs_path):
