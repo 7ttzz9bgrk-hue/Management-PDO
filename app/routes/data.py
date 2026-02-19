@@ -35,6 +35,9 @@ async def save_task(update: TaskUpdate):
     try:
         abs_path = normalize_path(update.file_path)
 
+        if update.new_columns is None:
+            update.new_columns = {}
+
         if not update.updates and not update.new_columns:
             raise HTTPException(status_code=400, detail="No changes provided")
 
