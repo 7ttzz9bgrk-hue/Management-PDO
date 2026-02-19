@@ -14,7 +14,8 @@ router = APIRouter()
 async def _event_generator():
     """Generate SSE events for a connected client."""
     client = {"needs_update": False, "last_version": state.data_version}
-    state.connected_clients.append(client)
+    with state.clients_lock:
+        state.connected_clients.append(client)
     last_send_time = time.monotonic()
 
     try:
@@ -31,8 +32,9 @@ async def _event_generator():
 
             await asyncio.sleep(max(SSE_POLL_SECONDS, 0.1))
     finally:
-        if client in state.connected_clients:
-            state.connected_clients.remove(client)
+        with state.clients_lock:
+            if client in state.connected_clients:
+                state.connected_clients.remove(client)
 
 
 @router.get("/events")

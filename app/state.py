@@ -9,6 +9,7 @@ cached_data = {
 data_version = 0
 
 connected_clients = []
+clients_lock = threading.Lock()
 
 write_in_progress = False
 write_lock = threading.Lock()

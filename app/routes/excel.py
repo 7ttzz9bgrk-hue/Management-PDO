@@ -2,7 +2,7 @@ import os
 
 from fastapi import APIRouter, HTTPException
 
-from app.config import FILE_PATHS
+from app.config import FILE_PATHS, ALLOWED_EXCEL_EXTENSIONS
 from app.models import ExcelFileRequest
 from app.services.excel_manager import open_excel_file
 from app.services.path_guard import is_allowed_path, normalize_path
@@ -19,8 +19,8 @@ async def open_excel(request: ExcelFileRequest):
         raise HTTPException(status_code=403, detail="File not in allowed paths")
 
     _, ext = os.path.splitext(abs_path)
-    if ext.lower() not in {".xlsx", ".xlsm", ".xls"}:
-        raise HTTPException(status_code=400, detail="Only Excel files are supported")
+    if ext.lower() not in ALLOWED_EXCEL_EXTENSIONS:
+        raise HTTPException(status_code=400, detail="Only .xlsx and .xlsm files are supported")
 
     if not os.path.isfile(abs_path):
         raise HTTPException(status_code=404, detail="File not found")

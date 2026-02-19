@@ -17,3 +17,6 @@ SSE_KEEPALIVE_SECONDS = 25
 
 APP_HOST = "127.0.0.1"
 APP_PORT = 8889
+
+# Keep extension handling centralized so routes/watcher stay consistent.
+ALLOWED_EXCEL_EXTENSIONS = {".xlsx", ".xlsm"}

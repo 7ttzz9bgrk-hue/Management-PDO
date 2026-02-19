@@ -5,7 +5,7 @@ from datetime import datetime
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 
-from app.config import FILE_PATHS, DEBOUNCE_SECONDS
+from app.config import FILE_PATHS, DEBOUNCE_SECONDS, ALLOWED_EXCEL_EXTENSIONS
 import app.state as state
 
 observer = None
@@ -21,7 +21,8 @@ class ExcelFileHandler(FileSystemEventHandler):
     def _handle_change(self, path: str):
         changed_path = os.path.abspath(path)
 
-        if not changed_path.lower().endswith((".xlsx", ".xlsm", ".xls")):
+        _, ext = os.path.splitext(changed_path)
+        if ext.lower() not in ALLOWED_EXCEL_EXTENSIONS:
             return
 
         if os.path.basename(changed_path).startswith("~$"):

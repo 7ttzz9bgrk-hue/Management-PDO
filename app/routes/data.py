@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException
 from openpyxl import load_workbook
 import pandas as pd
 
-from app.config import FILE_PATHS
+from app.config import FILE_PATHS, ALLOWED_EXCEL_EXTENSIONS
 from app.models import TaskUpdate, AddTaskRequest
 from app.services.excel_io import read_file_with_shared_access, safe_read_excel
 from app.services.data_loader import reload_data
@@ -45,8 +45,8 @@ async def save_task(update: TaskUpdate):
             raise HTTPException(status_code=403, detail="File not in allowed paths")
 
         _, ext = os.path.splitext(abs_path)
-        if ext.lower() not in {".xlsx", ".xlsm", ".xls"}:
-            raise HTTPException(status_code=400, detail="Only Excel files are supported")
+        if ext.lower() not in ALLOWED_EXCEL_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Only .xlsx and .xlsm files are supported")
 
         if not os.path.isfile(abs_path):
             raise HTTPException(status_code=404, detail="File not found")
@@ -161,8 +161,8 @@ async def add_task(request: AddTaskRequest):
             raise HTTPException(status_code=403, detail="File not in allowed paths")
 
         _, ext = os.path.splitext(abs_path)
-        if ext.lower() not in {".xlsx", ".xlsm", ".xls"}:
-            raise HTTPException(status_code=400, detail="Only Excel files are supported")
+        if ext.lower() not in ALLOWED_EXCEL_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Only .xlsx and .xlsm files are supported")
 
         if not os.path.isfile(abs_path):
             raise HTTPException(status_code=404, detail="File not found")
