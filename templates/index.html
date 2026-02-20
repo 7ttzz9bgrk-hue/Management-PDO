@@ -45,17 +45,28 @@
         </button>
       </div>
 
-      <!-- Sheet Navigation -->
-      <nav class="flex-1 overflow-y-auto px-4 py-4 space-y-1" id="sheetButtons">
-        {% for sheet_name in sheet_names %}
-        <button onclick="switchSheet('{{ sheet_name }}')"
-                class="sheet-btn w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 truncate"
-                data-sheet="{{ sheet_name }}"
-                title="{{ sheet_name }}">
-          {{ sheet_name }}
-        </button>
-        {% endfor %}
-      </nav>
+      <!-- Project Navigation (Incomplete / Completed) -->
+      <div id="projectPanels" class="project-panels-container flex-1 px-4 pb-4">
+        <section id="incompleteProjectsPanel" class="project-panel">
+          <div class="project-panel-header">
+            <h3>In Progress Projects</h3>
+            <span id="incompleteProjectsCount">0</span>
+          </div>
+          <nav id="incompleteSheetButtons" class="project-panel-list"></nav>
+        </section>
+
+        <div id="projectPanelDivider" class="project-panel-divider" title="Drag to resize">
+          <span></span>
+        </div>
+
+        <section id="completedProjectsPanel" class="project-panel">
+          <div class="project-panel-header">
+            <h3>Completed Projects</h3>
+            <span id="completedProjectsCount">0</span>
+          </div>
+          <nav id="completedSheetButtons" class="project-panel-list"></nav>
+        </section>
+      </div>
     </aside>
 
     <!-- Main Content -->
@@ -323,6 +334,7 @@
     window.AppConfig = {
       allSheetsData: {{ all_sheets_data | tojson }},
       dataVersion: {{ data_version | default(0) }},
+      sheetNames: {{ sheet_names | tojson }},
       initialSheet: "{{ sheet_names[0] }}"
     };
   </script>

@@ -1,6 +1,7 @@
 // ===== GLOBAL STATE =====
 let allSheetsData = window.AppConfig?.allSheetsData || {};
 let currentDataVersion = window.AppConfig?.dataVersion || 0;
+let availableSheetNames = window.AppConfig?.sheetNames || Object.keys(allSheetsData || {});
 let currentSheet = window.AppConfig?.initialSheet || '';
 let buttonData = allSheetsData[currentSheet];
 let selectedTask = null;
@@ -8,6 +9,9 @@ let allTasks = [];
 let filterBarOpen = false;
 let originalDetails = {};
 let addTaskKnownColumns = [];
+
+const PROJECT_PANEL_MIN_HEIGHT = 120;
+const PROJECT_PANEL_HEIGHT_STORAGE_KEY = 'project_panel_top_height_px';
 
 const buttonColors = [
   'bg-blue-500 hover:bg-blue-600',
@@ -470,6 +474,141 @@ function showNotification(message, type = 'success') {
 // Keep old name for backward compat with due-soon code
 const showEditNotification = showNotification;
 
+// ===== PROJECT SIDEBAR =====
+function isCompletedStatus(statusValue) {
+  return String(statusValue || '').trim().toLowerCase() === 'completed';
+}
+
+function isProjectCompleted(sheetName) {
+  const tasks = allSheetsData[sheetName] || {};
+  let hasAnyTask = false;
+
+  for (const taskName in tasks) {
+    const instances = tasks[taskName] || [];
+    for (const instance of instances) {
+      hasAnyTask = true;
+      const details = typeof instance === 'string' ? instance : instance.details;
+      const { status } = parseTaskDetails(details || '');
+      if (!isCompletedStatus(status)) {
+        return false;
+      }
+    }
+  }
+
+  return hasAnyTask;
+}
+
+function createProjectSheetButton(sheetName) {
+  const button = document.createElement('button');
+  button.onclick = () => switchSheet(sheetName);
+  button.className = 'sheet-btn w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 truncate';
+  button.dataset.sheet = sheetName;
+  button.textContent = sheetName;
+  button.title = sheetName;
+
+  if (sheetName === currentSheet) {
+    button.classList.add('sheet-btn-active');
+  }
+
+  return button;
+}
+
+function renderProjectPanels(sheetNames = availableSheetNames) {
+  const incompleteContainer = document.getElementById('incompleteSheetButtons');
+  const completedContainer = document.getElementById('completedSheetButtons');
+  const incompleteCount = document.getElementById('incompleteProjectsCount');
+  const completedCount = document.getElementById('completedProjectsCount');
+  if (!incompleteContainer || !completedContainer) return;
+
+  const incompleteSheets = [];
+  const completedSheets = [];
+
+  sheetNames.forEach(sheetName => {
+    if (isProjectCompleted(sheetName)) {
+      completedSheets.push(sheetName);
+    } else {
+      incompleteSheets.push(sheetName);
+    }
+  });
+
+  incompleteContainer.innerHTML = '';
+  completedContainer.innerHTML = '';
+
+  incompleteSheets.forEach(sheetName => incompleteContainer.appendChild(createProjectSheetButton(sheetName)));
+  completedSheets.forEach(sheetName => completedContainer.appendChild(createProjectSheetButton(sheetName)));
+
+  if (incompleteCount) incompleteCount.textContent = String(incompleteSheets.length);
+  if (completedCount) completedCount.textContent = String(completedSheets.length);
+}
+
+function ensureValidCurrentSheet() {
+  if (availableSheetNames.includes(currentSheet)) {
+    return;
+  }
+  if (availableSheetNames.length > 0) {
+    currentSheet = availableSheetNames[0];
+  }
+}
+
+function initProjectPanelResize() {
+  const container = document.getElementById('projectPanels');
+  const topPanel = document.getElementById('incompleteProjectsPanel');
+  const bottomPanel = document.getElementById('completedProjectsPanel');
+  const divider = document.getElementById('projectPanelDivider');
+  if (!container || !topPanel || !bottomPanel || !divider) return;
+
+  const applyTopHeight = (requestedHeight) => {
+    const containerHeight = container.clientHeight;
+    if (containerHeight <= 0) return;
+
+    const dividerHeight = divider.offsetHeight;
+    const maxHeight = Math.max(
+      PROJECT_PANEL_MIN_HEIGHT,
+      containerHeight - dividerHeight - PROJECT_PANEL_MIN_HEIGHT
+    );
+    const clampedHeight = Math.min(
+      Math.max(requestedHeight, PROJECT_PANEL_MIN_HEIGHT),
+      maxHeight
+    );
+
+    topPanel.style.height = `${Math.floor(clampedHeight)}px`;
+    localStorage.setItem(PROJECT_PANEL_HEIGHT_STORAGE_KEY, String(Math.floor(clampedHeight)));
+  };
+
+  const savedHeight = Number(localStorage.getItem(PROJECT_PANEL_HEIGHT_STORAGE_KEY));
+  if (!Number.isNaN(savedHeight) && savedHeight > 0) {
+    applyTopHeight(savedHeight);
+  } else {
+    applyTopHeight(container.clientHeight * 0.58);
+  }
+
+  let dragging = false;
+  const onMouseMove = (event) => {
+    if (!dragging) return;
+    const rect = container.getBoundingClientRect();
+    applyTopHeight(event.clientY - rect.top);
+  };
+  const onMouseUp = () => {
+    dragging = false;
+    document.body.style.cursor = '';
+    document.body.style.userSelect = '';
+  };
+
+  divider.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    dragging = true;
+    document.body.style.cursor = 'row-resize';
+    document.body.style.userSelect = 'none';
+  });
+
+  window.addEventListener('mousemove', onMouseMove);
+  window.addEventListener('mouseup', onMouseUp);
+  window.addEventListener('resize', () => {
+    const currentTopHeight = topPanel.getBoundingClientRect().height;
+    applyTopHeight(currentTopHeight);
+  });
+}
+
 // ===== SHEET SWITCHING =====
 function switchSheet(sheetName) {
   currentSheet = sheetName;
@@ -562,9 +701,9 @@ async function fetchLatestData(showToast = true) {
     if (data.version > currentDataVersion) {
       allSheetsData = data.all_sheets_data;
       currentDataVersion = data.version;
-
-      const newSheetNames = data.sheet_names;
-      updateSheetButtons(newSheetNames);
+      availableSheetNames = data.sheet_names;
+      ensureValidCurrentSheet();
+      renderProjectPanels(availableSheetNames);
 
       if (allSheetsData[currentSheet]) {
         buttonData = allSheetsData[currentSheet];
@@ -583,8 +722,8 @@ async function fetchLatestData(showToast = true) {
             </div>`;
         }
       } else {
-        if (newSheetNames.length > 0) {
-          switchSheet(newSheetNames[0]);
+        if (availableSheetNames.length > 0) {
+          switchSheet(availableSheetNames[0]);
         }
       }
 
@@ -597,31 +736,6 @@ async function fetchLatestData(showToast = true) {
     }
   } catch (err) {
     console.error('Failed to fetch latest data:', err);
-  }
-}
-
-function updateSheetButtons(newSheetNames) {
-  const container = document.getElementById('sheetButtons');
-  const existingSheets = Array.from(container.querySelectorAll('.sheet-btn')).map(btn => btn.dataset.sheet);
-
-  const sheetsChanged = newSheetNames.length !== existingSheets.length ||
-                        newSheetNames.some((name, i) => name !== existingSheets[i]);
-
-  if (sheetsChanged) {
-    container.innerHTML = '';
-    newSheetNames.forEach(sheetName => {
-      const button = document.createElement('button');
-      button.onclick = () => switchSheet(sheetName);
-      button.className = 'sheet-btn w-full text-left px-4 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 truncate';
-      button.dataset.sheet = sheetName;
-      button.textContent = sheetName;
-
-      if (sheetName === currentSheet) {
-        button.classList.add('sheet-btn-active');
-      }
-
-      container.appendChild(button);
-    });
   }
 }
 
@@ -1436,6 +1550,9 @@ function init() {
   });
 
   // Initialize view
+  ensureValidCurrentSheet();
+  renderProjectPanels(availableSheetNames);
+  initProjectPanelResize();
   switchSheet(currentSheet);
 
   // Due soon badge
