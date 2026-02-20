@@ -1,9 +1,8 @@
 import os
 
 FILE_PATHS = [
-    "mockData.xlsx",
-    # Add more file paths here:
-    # "//server/shared/projects.xlsx",
+    "EngineerA.xlsx",
+    "EngineerB.xlsx",
     # "another.xlsx",
 ]
 

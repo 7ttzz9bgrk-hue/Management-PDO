@@ -18,6 +18,9 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 
+LOCKED_FILE_MESSAGE = "Cannot save: The Excel file is open in another program. Please close Excel and try again."
+
+
 @router.get("/data")
 async def get_data():
     """Fetch the latest cached data."""
@@ -50,6 +53,8 @@ async def save_task(update: TaskUpdate):
 
         if not os.path.isfile(abs_path):
             raise HTTPException(status_code=404, detail="File not found")
+
+        _assert_excel_not_open(abs_path)
 
         with state.write_lock:
             state.write_in_progress = True
@@ -114,6 +119,7 @@ async def save_task(update: TaskUpdate):
             excel_data[update.sheet_name] = df
 
             original_col_widths, original_col_formats, original_tab_colors, original_book_views = _read_formatting(abs_path)
+            _assert_excel_not_open(abs_path)
 
             try:
                 _write_excel(abs_path, excel_data, original_col_widths, original_col_formats, original_tab_colors, original_book_views)
@@ -121,7 +127,7 @@ async def save_task(update: TaskUpdate):
                 if isinstance(err, PermissionError) or getattr(err, "errno", None) == 13:
                     raise HTTPException(
                         status_code=423,
-                        detail="Cannot save: The Excel file is open in another program. Please close Excel and try again.",
+                        detail=LOCKED_FILE_MESSAGE,
                     )
                 raise
 
@@ -169,6 +175,8 @@ async def add_task(request: AddTaskRequest):
 
         if not request.task_name.strip():
             raise HTTPException(status_code=400, detail="Task name cannot be blank")
+
+        _assert_excel_not_open(abs_path)
 
         invalid_value_columns = [
             str(col) for col in request.values
@@ -228,6 +236,7 @@ async def add_task(request: AddTaskRequest):
             excel_data[request.sheet_name] = df
 
             original_col_widths, original_col_formats, original_tab_colors, original_book_views = _read_formatting(abs_path)
+            _assert_excel_not_open(abs_path)
 
             try:
                 _write_excel(abs_path, excel_data, original_col_widths, original_col_formats, original_tab_colors, original_book_views)
@@ -235,7 +244,7 @@ async def add_task(request: AddTaskRequest):
                 if isinstance(err, PermissionError) or getattr(err, "errno", None) == 13:
                     raise HTTPException(
                         status_code=423,
-                        detail="Cannot save: The Excel file is open in another program. Please close Excel and try again.",
+                        detail=LOCKED_FILE_MESSAGE,
                     )
                 raise
 
@@ -344,3 +353,30 @@ def _write_excel(abs_path, excel_data, col_widths, col_formats, tab_colors, book
         except OSError:
             pass
         raise
+
+
+def _assert_excel_not_open(abs_path):
+    """Best-effort check for Office lock artifacts before writing."""
+    lock_markers = _office_lock_markers(abs_path)
+    if any(os.path.exists(lock_path) for lock_path in lock_markers):
+        raise HTTPException(status_code=423, detail=LOCKED_FILE_MESSAGE)
+
+    # On some systems the lock marker is absent; try opening in read/write mode.
+    # If the file is exclusively locked, this raises PermissionError / errno 13.
+    try:
+        with open(abs_path, "r+b"):
+            pass
+    except (PermissionError, OSError) as err:
+        if isinstance(err, PermissionError) or getattr(err, "errno", None) == 13:
+            raise HTTPException(status_code=423, detail=LOCKED_FILE_MESSAGE)
+        raise
+
+
+def _office_lock_markers(abs_path):
+    """Common lock-file names created by Excel/LibreOffice."""
+    dir_name = os.path.dirname(abs_path)
+    base_name = os.path.basename(abs_path)
+    return [
+        os.path.join(dir_name, f"~${base_name}"),
+        os.path.join(dir_name, f".~lock.{base_name}#"),
+    ]
