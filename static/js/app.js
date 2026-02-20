@@ -7,6 +7,7 @@ let selectedTask = null;
 let allTasks = [];
 let filterBarOpen = false;
 let originalDetails = {};
+let addTaskKnownColumns = [];
 
 const buttonColors = [
   'bg-blue-500 hover:bg-blue-600',
@@ -500,6 +501,7 @@ function switchSheet(sheetName) {
   });
 
   updateExcelButton();
+  updateAddTaskButton();
 }
 
 // ===== HORIZONTAL SCROLL =====
@@ -552,7 +554,7 @@ function connectSSE() {
   };
 }
 
-async function fetchLatestData() {
+async function fetchLatestData(showToast = true) {
   try {
     const response = await fetch('/api/data');
     const data = await response.json();
@@ -586,8 +588,12 @@ async function fetchLatestData() {
         }
       }
 
-      showNotification('Data updated', 'success');
+      if (showToast) {
+        showNotification('Data updated', 'success');
+      }
       updateDueSoonBadgeOnLoad();
+      updateExcelButton();
+      updateAddTaskButton();
     }
   } catch (err) {
     console.error('Failed to fetch latest data:', err);
@@ -622,21 +628,32 @@ function updateSheetButtons(newSheetNames) {
 // ===== DUE SOON =====
 let dueSoonOriginalDetails = {};
 
+function updateBodyScrollLock() {
+  const dueSoonModal = document.getElementById('dueSoonModal');
+  const addTaskModal = document.getElementById('addTaskModal');
+  const dueSoonOpen = dueSoonModal && !dueSoonModal.classList.contains('hidden');
+  const addTaskOpen = addTaskModal && !addTaskModal.classList.contains('hidden');
+  document.body.style.overflow = (dueSoonOpen || addTaskOpen) ? 'hidden' : '';
+}
+
 function openDueSoonPopup() {
   const modal = document.getElementById('dueSoonModal');
   modal.classList.remove('hidden');
-  document.body.style.overflow = 'hidden';
+  updateBodyScrollLock();
   filterDueSoonTasks();
 }
 
 function closeDueSoonPopup() {
   const modal = document.getElementById('dueSoonModal');
   modal.classList.add('hidden');
-  document.body.style.overflow = '';
+  updateBodyScrollLock();
 }
 
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeDueSoonPopup();
+  if (e.key === 'Escape') {
+    closeDueSoonPopup();
+    closeAddTaskModal();
+  }
 });
 
 function getAllTasksAcrossProjects() {
@@ -1087,6 +1104,197 @@ function getExcelFilesForSheet(sheetName) {
   return [...filePaths];
 }
 
+function getColumnsForSheetFile(sheetName, filePath) {
+  const tasks = allSheetsData[sheetName];
+  if (!tasks) return [];
+
+  const columns = [];
+  const seen = new Set();
+
+  for (const taskName in tasks) {
+    for (const instance of tasks[taskName]) {
+      if (!instance.metadata || !Array.isArray(instance.metadata.columns)) {
+        continue;
+      }
+      if (filePath && instance.metadata.file_path !== filePath) {
+        continue;
+      }
+      for (const col of instance.metadata.columns) {
+        if (!seen.has(col)) {
+          seen.add(col);
+          columns.push(col);
+        }
+      }
+    }
+  }
+
+  return columns;
+}
+
+function updateAddTaskButton() {
+  const btn = document.getElementById('addTaskBtn');
+  if (!btn) return;
+
+  const files = getExcelFilesForSheet(currentSheet);
+  if (files.length === 0) {
+    btn.classList.add('hidden');
+  } else {
+    btn.classList.remove('hidden');
+  }
+}
+
+function updateAddTaskColumnHint() {
+  const fileSelect = document.getElementById('addTaskFileSelect');
+  const hint = document.getElementById('addTaskColumnHint');
+  if (!fileSelect || !hint) return;
+
+  const selectedFile = fileSelect.value;
+  addTaskKnownColumns = getColumnsForSheetFile(currentSheet, selectedFile);
+  const editableColumns = addTaskKnownColumns.slice(1);
+
+  if (editableColumns.length === 0) {
+    hint.innerHTML = 'Format each line as <code class="bg-white/5 px-1.5 py-0.5 rounded text-gray-300">ColumnName: value</code>. Unknown columns will be added as new columns.';
+    return;
+  }
+
+  const preview = editableColumns.slice(0, 8).join(', ');
+  const suffix = editableColumns.length > 8 ? ', ...' : '';
+  hint.innerHTML = `Known columns: <span class="text-gray-400">${preview}${suffix}</span>. New column names are allowed.`;
+}
+
+function populateAddTaskFieldsTemplate() {
+  const detailsInput = document.getElementById('addTaskDetailsInput');
+  if (!detailsInput) return;
+
+  const editableColumns = addTaskKnownColumns.slice(1);
+  if (editableColumns.length === 0) {
+    detailsInput.value = '';
+    return;
+  }
+
+  detailsInput.value = editableColumns.map(col => `${col}: `).join('\n');
+}
+
+function onAddTaskFileChanged() {
+  updateAddTaskColumnHint();
+  populateAddTaskFieldsTemplate();
+}
+
+function openAddTaskModal() {
+  const modal = document.getElementById('addTaskModal');
+  const fileSelect = document.getElementById('addTaskFileSelect');
+  const taskNameInput = document.getElementById('addTaskNameInput');
+  const detailsInput = document.getElementById('addTaskDetailsInput');
+  const sheetName = document.getElementById('addTaskSheetName');
+
+  const files = getExcelFilesForSheet(currentSheet);
+  if (files.length === 0) {
+    showNotification('No source Excel file found for this sheet', 'error');
+    return;
+  }
+
+  fileSelect.innerHTML = '';
+  files.forEach(filePath => {
+    const option = document.createElement('option');
+    option.value = filePath;
+    option.textContent = filePath.split(/[\\\/]/).pop();
+    fileSelect.appendChild(option);
+  });
+  fileSelect.disabled = files.length <= 1;
+
+  sheetName.textContent = currentSheet;
+  taskNameInput.value = '';
+  onAddTaskFileChanged();
+
+  modal.classList.remove('hidden');
+  updateBodyScrollLock();
+  taskNameInput.focus();
+}
+
+function closeAddTaskModal() {
+  const modal = document.getElementById('addTaskModal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  updateBodyScrollLock();
+}
+
+async function submitAddTask() {
+  const fileSelect = document.getElementById('addTaskFileSelect');
+  const taskNameInput = document.getElementById('addTaskNameInput');
+  const detailsInput = document.getElementById('addTaskDetailsInput');
+  const saveBtn = document.getElementById('addTaskSaveBtn');
+
+  const filePath = fileSelect.value;
+  const taskName = taskNameInput.value.trim();
+  const detailLines = detailsInput.value.split('\n');
+
+  if (!filePath) {
+    showNotification('Select a source file first', 'error');
+    return;
+  }
+  if (!taskName) {
+    showNotification('Task name is required', 'error');
+    taskNameInput.focus();
+    return;
+  }
+
+  const values = {};
+  const newColumns = {};
+  const knownColumns = new Set(addTaskKnownColumns.slice(1));
+
+  for (const rawLine of detailLines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const colonIndex = line.indexOf(':');
+    if (colonIndex <= 0) {
+      showNotification(`Invalid line: "${line}". Use ColumnName: value`, 'error');
+      return;
+    }
+
+    const key = line.substring(0, colonIndex).trim();
+    const value = line.substring(colonIndex + 1).trim();
+
+    if (knownColumns.has(key)) {
+      values[key] = value;
+    } else {
+      newColumns[key] = value;
+    }
+  }
+
+  saveBtn.disabled = true;
+  const originalText = saveBtn.textContent;
+  saveBtn.textContent = 'Adding...';
+
+  try {
+    const response = await fetch('/api/add-task', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        file_path: filePath,
+        sheet_name: currentSheet,
+        task_name: taskName,
+        values,
+        new_columns: Object.keys(newColumns).length > 0 ? newColumns : null
+      })
+    });
+
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.detail || 'Failed to add task');
+    }
+
+    closeAddTaskModal();
+    showNotification('Task added successfully!', 'success');
+    await fetchLatestData(false);
+  } catch (error) {
+    showNotification(`Error: ${error.message}`, 'error');
+  } finally {
+    saveBtn.disabled = false;
+    saveBtn.textContent = originalText;
+  }
+}
+
 function updateExcelButton() {
   const btn = document.getElementById('excelOpenBtn');
   const btnFile = document.getElementById('excelBtnFile');
@@ -1194,6 +1402,9 @@ async function openSingleExcelFile(filePath) {
 
 window.openExcelFile = openExcelFile;
 window.closeExcelFilePopup = closeExcelFilePopup;
+window.openAddTaskModal = openAddTaskModal;
+window.closeAddTaskModal = closeAddTaskModal;
+window.submitAddTask = submitAddTask;
 
 // ===== INITIALIZATION =====
 function init() {
@@ -1232,6 +1443,12 @@ function init() {
 
   // Excel button
   updateExcelButton();
+  updateAddTaskButton();
+
+  const addTaskFileSelect = document.getElementById('addTaskFileSelect');
+  if (addTaskFileSelect) {
+    addTaskFileSelect.addEventListener('change', onAddTaskFileChanged);
+  }
 
   // Close excel file popup when clicking overlay
   const excelOverlay = document.getElementById('excelPopupOverlay');

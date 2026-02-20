@@ -1,13 +1,14 @@
 import io
 import logging
 import os
+import tempfile
 import time
 from fastapi import APIRouter, HTTPException
 from openpyxl import load_workbook
 import pandas as pd
 
 from app.config import FILE_PATHS
-from app.models import TaskUpdate
+from app.models import TaskUpdate, AddTaskRequest
 from app.services.excel_io import read_file_with_shared_access, safe_read_excel
 from app.services.data_loader import reload_data
 from app.services.path_guard import is_allowed_path, normalize_path
@@ -15,6 +16,9 @@ import app.state as state
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+LOCKED_FILE_MESSAGE = "Cannot save: The Excel file is open in another program. Please close Excel and try again."
 
 
 @router.get("/data")
@@ -49,6 +53,8 @@ async def save_task(update: TaskUpdate):
 
         if not os.path.isfile(abs_path):
             raise HTTPException(status_code=404, detail="File not found")
+
+        _assert_excel_not_open(abs_path)
 
         with state.write_lock:
             state.write_in_progress = True
@@ -113,6 +119,7 @@ async def save_task(update: TaskUpdate):
             excel_data[update.sheet_name] = df
 
             original_col_widths, original_col_formats, original_tab_colors, original_book_views = _read_formatting(abs_path)
+            _assert_excel_not_open(abs_path)
 
             try:
                 _write_excel(abs_path, excel_data, original_col_widths, original_col_formats, original_tab_colors, original_book_views)
@@ -120,7 +127,7 @@ async def save_task(update: TaskUpdate):
                 if isinstance(err, PermissionError) or getattr(err, "errno", None) == 13:
                     raise HTTPException(
                         status_code=423,
-                        detail="Cannot save: The Excel file is open in another program. Please close Excel and try again.",
+                        detail=LOCKED_FILE_MESSAGE,
                     )
                 raise
 
@@ -145,6 +152,123 @@ async def save_task(update: TaskUpdate):
         with state.write_lock:
             state.write_in_progress = False
         raise HTTPException(status_code=500, detail=f"Error saving task: {str(e)}")
+
+
+@router.post("/add-task")
+async def add_task(request: AddTaskRequest):
+    """Append a brand-new task row to a sheet in the Excel file."""
+    try:
+        abs_path = normalize_path(request.file_path)
+
+        if request.new_columns is None:
+            request.new_columns = {}
+
+        if not is_allowed_path(abs_path, FILE_PATHS):
+            raise HTTPException(status_code=403, detail="File not in allowed paths")
+
+        _, ext = os.path.splitext(abs_path)
+        if ext.lower() not in {".xlsx", ".xlsm", ".xls"}:
+            raise HTTPException(status_code=400, detail="Only Excel files are supported")
+
+        if not os.path.isfile(abs_path):
+            raise HTTPException(status_code=404, detail="File not found")
+
+        if not request.task_name.strip():
+            raise HTTPException(status_code=400, detail="Task name cannot be blank")
+
+        _assert_excel_not_open(abs_path)
+
+        invalid_value_columns = [
+            str(col) for col in request.values
+            if str(col).strip() == ""
+        ]
+        invalid_new_columns = [
+            str(col) for col in request.new_columns
+            if str(col).strip() == ""
+        ]
+        if invalid_value_columns or invalid_new_columns:
+            raise HTTPException(status_code=400, detail="Column names cannot be blank")
+
+        overlapping_columns = set(request.values).intersection(request.new_columns)
+        if overlapping_columns:
+            overlap_list = ", ".join(sorted(overlapping_columns))
+            raise HTTPException(
+                status_code=400,
+                detail=f"Columns cannot appear in both values and new_columns: {overlap_list}",
+            )
+
+        with state.write_lock:
+            state.write_in_progress = True
+
+        try:
+            excel_data = safe_read_excel(abs_path, sheet_name=None, engine="openpyxl")
+
+            if request.sheet_name not in excel_data:
+                raise HTTPException(status_code=404, detail="Sheet not found")
+
+            df = excel_data[request.sheet_name]
+            task_name_col = df.columns[0]
+
+            unknown_columns = [col for col in request.values if col not in df.columns]
+            if unknown_columns:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Unknown column(s): {', '.join(unknown_columns)}",
+                )
+
+            row_data = {col: None for col in df.columns}
+            row_data[task_name_col] = request.task_name
+
+            for col, value in request.values.items():
+                row_data[col] = value if value != "" else None
+
+            for col, value in request.new_columns.items():
+                if col not in df.columns:
+                    df[col] = None
+                row_data[col] = value if value != "" else None
+
+            for col in df.columns:
+                if col not in row_data:
+                    row_data[col] = None
+
+            new_row_df = pd.DataFrame([row_data], columns=df.columns)
+            df = pd.concat([df, new_row_df], ignore_index=True)
+            excel_data[request.sheet_name] = df
+
+            original_col_widths, original_col_formats, original_tab_colors, original_book_views = _read_formatting(abs_path)
+            _assert_excel_not_open(abs_path)
+
+            try:
+                _write_excel(abs_path, excel_data, original_col_widths, original_col_formats, original_tab_colors, original_book_views)
+            except (PermissionError, OSError) as err:
+                if isinstance(err, PermissionError) or getattr(err, "errno", None) == 13:
+                    raise HTTPException(
+                        status_code=423,
+                        detail=LOCKED_FILE_MESSAGE,
+                    )
+                raise
+
+            logger.info(
+                "Added task '%s' to %s, sheet '%s'",
+                request.task_name,
+                os.path.basename(abs_path),
+                request.sheet_name,
+            )
+            time.sleep(0.5)
+
+        finally:
+            with state.write_lock:
+                state.write_in_progress = False
+
+        reload_data()
+        return {"status": "success", "message": "Task added successfully"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        with state.write_lock:
+            state.write_in_progress = False
+        raise HTTPException(status_code=500, detail=f"Error adding task: {str(e)}")
 
 
 def _read_formatting(abs_path):
@@ -189,27 +313,70 @@ def _read_formatting(abs_path):
 
 
 def _write_excel(abs_path, excel_data, col_widths, col_formats, tab_colors, book_views):
-    """Write Excel data back to file, restoring formatting."""
-    with pd.ExcelWriter(abs_path, engine="openpyxl", mode="w") as writer:
-        for sname, sheet_df in excel_data.items():
-            sheet_df.to_excel(writer, sheet_name=sname, index=False)
+    """Write Excel data back to file atomically, restoring formatting.
 
-        if book_views:
-            writer.book.views = book_views
+    Writes to a temp file in the same directory first, then replaces the
+    original via rename. This prevents data loss if the write fails midway.
+    """
+    dir_name = os.path.dirname(abs_path)
+    tmp_fd, tmp_path = tempfile.mkstemp(dir=dir_name, suffix=".tmp.xlsx")
+    try:
+        os.close(tmp_fd)
+        with pd.ExcelWriter(tmp_path, engine="openpyxl", mode="w") as writer:
+            for sname, sheet_df in excel_data.items():
+                sheet_df.to_excel(writer, sheet_name=sname, index=False)
 
-        for sname in writer.sheets:
-            ws = writer.sheets[sname]
+            if book_views:
+                writer.book.views = book_views
 
-            if sname in tab_colors:
-                ws.sheet_properties.tabColor = tab_colors[sname]
+            for sname in writer.sheets:
+                ws = writer.sheets[sname]
 
-            if sname in col_widths:
-                for col_letter, width in col_widths[sname].items():
-                    ws.column_dimensions[col_letter].width = width
+                if sname in tab_colors:
+                    ws.sheet_properties.tabColor = tab_colors[sname]
 
-            if sname in col_formats:
-                for col_letter, num_format in col_formats[sname].items():
-                    from openpyxl.utils import column_index_from_string
-                    col_idx = column_index_from_string(col_letter)
-                    for row_idx in range(2, ws.max_row + 1):
-                        ws.cell(row=row_idx, column=col_idx).number_format = num_format
+                if sname in col_widths:
+                    for col_letter, width in col_widths[sname].items():
+                        ws.column_dimensions[col_letter].width = width
+
+                if sname in col_formats:
+                    for col_letter, num_format in col_formats[sname].items():
+                        from openpyxl.utils import column_index_from_string
+                        col_idx = column_index_from_string(col_letter)
+                        for row_idx in range(2, ws.max_row + 1):
+                            ws.cell(row=row_idx, column=col_idx).number_format = num_format
+
+        os.replace(tmp_path, abs_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _assert_excel_not_open(abs_path):
+    """Best-effort check for Office lock artifacts before writing."""
+    lock_markers = _office_lock_markers(abs_path)
+    if any(os.path.exists(lock_path) for lock_path in lock_markers):
+        raise HTTPException(status_code=423, detail=LOCKED_FILE_MESSAGE)
+
+    # On some systems the lock marker is absent; try opening in read/write mode.
+    # If the file is exclusively locked, this raises PermissionError / errno 13.
+    try:
+        with open(abs_path, "r+b"):
+            pass
+    except (PermissionError, OSError) as err:
+        if isinstance(err, PermissionError) or getattr(err, "errno", None) == 13:
+            raise HTTPException(status_code=423, detail=LOCKED_FILE_MESSAGE)
+        raise
+
+
+def _office_lock_markers(abs_path):
+    """Common lock-file names created by Excel/LibreOffice."""
+    dir_name = os.path.dirname(abs_path)
+    base_name = os.path.basename(abs_path)
+    return [
+        os.path.join(dir_name, f"~${base_name}"),
+        os.path.join(dir_name, f".~lock.{base_name}#"),
+    ]

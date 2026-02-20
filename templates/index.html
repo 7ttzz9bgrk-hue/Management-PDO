@@ -178,12 +178,21 @@
     </main>
   </div>
 
-  <!-- Excel Floating Button -->
-  <div class="fixed bottom-6 right-6 z-50">
+  <!-- Floating Action Buttons -->
+  <div class="fixed bottom-6 right-6 z-50 flex items-end gap-3">
     <!-- File Selection Popup -->
     <div id="excelFilePopup" class="excel-file-popup hidden">
       <div id="excelFileList"></div>
     </div>
+    <button id="addTaskBtn"
+            onclick="openAddTaskModal()"
+            class="excel-float-btn add-task-float-btn flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg font-medium text-white text-sm transition-all duration-300 hidden"
+            title="Add new task">
+      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+      </svg>
+      <span>Add Task</span>
+    </button>
     <button id="excelOpenBtn"
             onclick="openExcelFile()"
             class="excel-float-btn excel-btn-closed flex items-center gap-2 px-4 py-2.5 rounded-full shadow-lg font-medium text-white text-sm transition-all duration-300 hidden"
@@ -260,6 +269,52 @@
 
       <!-- Body -->
       <div id="dueSoonTaskList" class="due-soon-body"></div>
+    </div>
+  </div>
+
+  <!-- Add Task Modal -->
+  <div id="addTaskModal" class="add-task-modal hidden">
+    <div class="add-task-overlay" onclick="closeAddTaskModal()"></div>
+    <div class="add-task-content">
+      <div class="add-task-header">
+        <h2 class="text-lg font-bold text-white">Add New Task</h2>
+        <button onclick="closeAddTaskModal()" class="p-2 hover:bg-white/5 rounded-lg transition" title="Close">
+          <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+          </svg>
+        </button>
+      </div>
+      <div class="add-task-body">
+        <label class="add-task-label" for="addTaskFileSelect">Source File</label>
+        <select id="addTaskFileSelect" class="add-task-input"></select>
+        <p class="add-task-meta">Sheet: <span id="addTaskSheetName"></span></p>
+
+        <label class="add-task-label" for="addTaskNameInput">Task Name</label>
+        <input id="addTaskNameInput"
+               type="text"
+               class="add-task-input"
+               placeholder="Enter task name">
+
+        <label class="add-task-label" for="addTaskDetailsInput">Task Fields</label>
+        <textarea id="addTaskDetailsInput"
+                  class="add-task-textarea"
+                  placeholder="Status: Not Started&#10;Priority: High&#10;Assigned To: Alex"></textarea>
+
+        <p id="addTaskColumnHint" class="add-task-meta">
+          Format each line as <code class="bg-white/5 px-1.5 py-0.5 rounded text-gray-300">ColumnName: value</code>.
+        </p>
+      </div>
+      <div class="add-task-footer">
+        <button onclick="closeAddTaskModal()"
+                class="bg-white/5 hover:bg-white/10 text-gray-300 px-4 py-2 rounded-lg text-sm font-medium transition">
+          Cancel
+        </button>
+        <button id="addTaskSaveBtn"
+                onclick="submitAddTask()"
+                class="bg-cyan-600 hover:bg-cyan-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition">
+          Add Task
+        </button>
+      </div>
     </div>
   </div>
 
